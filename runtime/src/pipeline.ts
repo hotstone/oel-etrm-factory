@@ -236,7 +236,7 @@ ${ctx.plan!}`,
       prUrl: ctx.executorRun.prUrl,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = (err instanceof Error ? err.message : String(err)).slice(0, 600);
     await commentOnIssue(issue.id, `**Agent: pipeline failed.** ${message}`).catch(() => {});
     await setAgentLabel(issue.id, "agentBlocked").catch(() => {});
     return { status: "failed", issue: issue.identifier, detail: message };
