@@ -1,0 +1,27 @@
+{
+  "name": "etrm-factory-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AgentCore Runtime service: Strands graph orchestrating the Linear ticket-to-PR pipeline.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "dev": "tsx src/local.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^2.0.0",
+    "@aws-sdk/client-codebuild": "^3.700.0",
+    "@aws-sdk/client-s3": "^3.1114.0",
+    "@aws-sdk/client-secrets-manager": "^3.700.0",
+    "@strands-agents/sdk": "^1.0.0",
+    "bedrock-agentcore": "^0.4.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
