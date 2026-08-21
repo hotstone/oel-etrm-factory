@@ -4,7 +4,11 @@
     {
       "Sid": "Logs",
       "Effect": "Allow",
-      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
       "Resource": "arn:aws:logs:ap-southeast-2:007460876082:log-group:/aws/codebuild/claude-code-executor*"
     },
     {
@@ -14,18 +18,19 @@
       "Resource": "arn:aws:secretsmanager:ap-southeast-2:007460876082:secret:prod/github/pat-*"
     },
     {
-      "Sid": "BedrockInvoke",
+      "Sid": "AssumeBedrockOnly",
       "Effect": "Allow",
-      "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
-      "Resource": [
-        "arn:aws:bedrock:*:007460876082:inference-profile/au.anthropic.*",
-        "arn:aws:bedrock:*::foundation-model/anthropic.*"
-      ]
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::007460876082:role/etrm-agent-bedrock-only"
     },
     {
       "Sid": "ExecutorImagePull",
       "Effect": "Allow",
-      "Action": ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:BatchCheckLayerAvailability"],
+      "Action": [
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchCheckLayerAvailability"
+      ],
       "Resource": "arn:aws:ecr:ap-southeast-2:007460876082:repository/etrm-factory-codebuild"
     },
     {
@@ -37,7 +42,10 @@
     {
       "Sid": "PlanArtifacts",
       "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
       "Resource": "arn:aws:s3:::etrmfactory-agent-artifacts-007460876082/plans/*"
     }
   ]

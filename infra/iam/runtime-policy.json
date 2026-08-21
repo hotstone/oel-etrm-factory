@@ -4,16 +4,28 @@
     {
       "Sid": "BedrockInvoke",
       "Effect": "Allow",
-      "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
       "Resource": [
         "arn:aws:bedrock:*:007460876082:inference-profile/au.anthropic.*",
         "arn:aws:bedrock:*::foundation-model/anthropic.*"
       ]
     },
     {
+      "Sid": "AssumeBedrockOnly",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::007460876082:role/etrm-agent-bedrock-only"
+    },
+    {
       "Sid": "ExecutorBuilds",
       "Effect": "Allow",
-      "Action": ["codebuild:StartBuild", "codebuild:BatchGetBuilds"],
+      "Action": [
+        "codebuild:StartBuild",
+        "codebuild:BatchGetBuilds"
+      ],
       "Resource": "arn:aws:codebuild:ap-southeast-2:007460876082:project/claude-code-executor"
     },
     {
@@ -34,7 +46,10 @@
     {
       "Sid": "EcrPull",
       "Effect": "Allow",
-      "Action": ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"],
+      "Action": [
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer"
+      ],
       "Resource": "arn:aws:ecr:ap-southeast-2:007460876082:repository/etrm-factory-runtime"
     },
     {

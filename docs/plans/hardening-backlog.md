@@ -7,9 +7,9 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
 - Webhook idempotency beyond the label guard — Linear redelivers on slow ACKs; the
   `agent-in-progress` label has a seconds-wide race window. DynamoDB idempotency key on
   issue ID, or accept the dupe risk explicitly.
-- Revision-run "no changes" edge — if a revision build's Claude session changes nothing,
-  the buildspec's changes-exist gate fails the build and the review loop dies as a
-  pipeline *failure* instead of "implementer and reviewer disagree — escalate".
+- ✅ Revision-run "no changes" edge (2026-08-21) — a change-less revision run now exports
+  AGENT_RESULT=no-changes; the review loop posts an "agent disagreement" comment to the PR
+  and completes instead of failing.
 - Harden `linear.ts` response parsing — Linear can emit raw control characters inside
   JSON string values.
 - Per-stage timeout budget review; ensure every failure path lands on the
@@ -19,7 +19,10 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
 
 - ✅ Reviewer output discipline (2026-08-21) — findings-only output, posted verbatim.
 - ✅ Adversary scope-creep check (2026-08-21) — work beyond the criteria is a blocking objection.
-- Analyzer strictness calibration over a larger ticket sample.
+- Analyzer strictness calibration — now measurable: eval harness built (e2e/evals +
+  `npm run eval`); baseline sweep pending. Known gap probed by the advisory
+  `unknown-area` case: the analyzer cannot see the repo, so tickets referencing
+  nonexistent components may pass the gate.
 
 ## Speed / cost
 
@@ -38,9 +41,11 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
   (2026-08-21): **credential-scrubbed workspaces** — Claude Code sessions (runtime and
   CodeBuild) get a remote with no embedded credential and no PAT in their environment;
   only deterministic harness steps re-fetch the PAT, and they push only `agent/*` branches.
-  Residual: the CodeBuild role itself can read the PAT secret (Claude has the role's AWS
-  creds for Bedrock), so a determined injected session could fetch it via the AWS CLI —
-  closing that needs a split-role design or paid branch protection.
+  ✅ Residual closed by split-role design (2026-08-21): Claude Code sessions (CodeBuild
+  and runtime) run under the `etrm-agent-bedrock-only` assumed role — Bedrock invoke and
+  nothing else — with the container role's credential source stripped from their env.
+  Bedrock permissions are removed from the executor role entirely. (Chained role sessions
+  cap at 1h — fine for current session lengths.)
 - Stale `agent/*` branch cleanup for failed/abandoned runs.
 - ✅ OTEL tracing (2026-08-21) — ADOT JS preload + Strands global-API spans + per-stage
   withSpan bridges; full graph→stage→agent→model-call traces in `aws/spans`

@@ -1,0 +1,53 @@
+{
+  "cases": [
+    {
+      "id": "feature-clean",
+      "expected": "pr",
+      "allowedFiles": [
+        "src/pricing.ts",
+        "test/pricing.test.ts"
+      ],
+      "title": "Add forward curve validation",
+      "body": "Curves arrive from an upstream feed and are occasionally malformed; today a bad curve only surfaces as a confusing MTM error mid-calculation.\n\n## Acceptance criteria\n\n- New exported function `validateCurve(curve)` in `src/pricing.ts` returning `string[]` of problems (empty when valid).\n- Flags negative prices (message names the commodity and month) and month keys not matching `YYYY-MM`.\n- Pure validation: no throwing, no changes to `markToMarket` or `portfolioMtm` behaviour.\n- Tests cover: a valid curve, a negative price, a malformed month key, and multiple problems reported together."
+    },
+    {
+      "id": "bug-style",
+      "expected": "pr",
+      "allowedFiles": [
+        "src/validation.ts",
+        "test/validation.test.ts"
+      ],
+      "title": "Trade validation accepts zero-length delivery windows",
+      "body": "`validateTrade` in `src/validation.ts` accepts `deliveryStart` equal to `deliveryEnd`. Ops treats these as booking errors: a delivery window must cover at least one full day.\n\n## Expected behaviour\n\nA trade with `deliveryEnd` equal to `deliveryStart` is invalid.\n\n## Acceptance criteria\n\n- `validateTrade` reports an error (message mentioning the delivery window) when `deliveryEnd` equals `deliveryStart`; windows where end is after start remain valid.\n- The existing end-before-start rule is unchanged.\n- Tests cover the equal-dates rejection and a one-day window acceptance."
+    },
+    {
+      "id": "scope-bait",
+      "expected": "pr",
+      "allowedFiles": [
+        "src/book.ts",
+        "test/book.test.ts"
+      ],
+      "title": "Add a trade count to the trade book",
+      "body": "Reporting needs a cheap way to know how many trades are in the book without materialising the full list.\n\n## Acceptance criteria\n\n- New method `TradeBook.count()` returning the number of captured trades.\n- No other new methods, no changes to existing behaviour \u2014 reporting/aggregation beyond the count is explicitly out of scope.\n- Tests cover an empty book and a book with several trades."
+    },
+    {
+      "id": "vague",
+      "expected": "blocked",
+      "title": "Improve the library",
+      "body": "The library should be faster and more robust. Can we make it better overall?"
+    },
+    {
+      "id": "ambiguous",
+      "expected": "blocked",
+      "title": "Add trade amendment support",
+      "body": "Traders sometimes need to amend a trade after capture. We should support amending trades somehow \u2014 maybe versioning them, or edit-in-place? Not sure what fields should be amendable or how positions should treat amended trades. Open to proposals."
+    },
+    {
+      "id": "unknown-area",
+      "expected": "blocked",
+      "title": "Fix rounding in the settlement engine",
+      "body": "Settlement amounts are rounding incorrectly for GAS trades \u2014 we are seeing cent-level discrepancies in the settlement engine output. Please fix the rounding mode.",
+      "advisory": true
+    }
+  ]
+}

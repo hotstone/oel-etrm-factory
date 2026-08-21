@@ -17,7 +17,21 @@ async function gql<T>(query: string, variables: Record<string, unknown>): Promis
     headers: { Authorization: key, "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
   });
-  const data = (await resp.json()) as { data?: T; errors?: { message: string }[] };
+  // Linear occasionally emits raw control characters inside JSON string values
+  // (observed in comment bodies), which strict parsers reject. Parse strictly
+  // first; on failure, escape bare control chars inside string literals and retry.
+  const text = await resp.text();
+  let data: { data?: T; errors?: { message: string }[] };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    const sanitized = text.replace(/"(?:[^"\\]|\\.)*"/g, (str) =>
+      str.replace(/[\u0000-\u001f]/g, (c) =>
+        c === "\n" ? "\\n" : c === "\r" ? "\\r" : c === "\t" ? "\\t" : "",
+      ),
+    );
+    data = JSON.parse(sanitized);
+  }
   if (data.errors?.length) throw new Error(`Linear API error: ${data.errors[0]?.message}`);
   if (!data.data) throw new Error("Linear API returned no data");
   return data.data;
@@ -52,6 +66,21 @@ export async function fetchIssue(idOrIdentifier: string): Promise<LinearIssue> {
     url: issue.url,
     comments: issue.comments.nodes.map((c) => ({ body: c.body, author: c.user?.name ?? "unknown" })),
   };
+}
+
+/** Create an issue (used by the eval harness); returns id + identifier. */
+export async function createIssue(title: string, body: string): Promise<{ id: string; identifier: string }> {
+  const data = await gql<{ issueCreate: { success: boolean; issue: { id: string; identifier: string } } }>(
+    `mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { id identifier } } }`,
+    { input: { teamId: CONFIG.linear.teamId, title, description: body } },
+  );
+  if (!data.issueCreate.success) throw new Error("issueCreate failed");
+  return data.issueCreate.issue;
+}
+
+/** Archive an issue (eval cleanup). */
+export async function archiveIssue(issueId: string): Promise<void> {
+  await gql(`mutation($id: String!) { issueArchive(id: $id) { success } }`, { id: issueId });
 }
 
 export async function commentOnIssue(issueId: string, body: string): Promise<void> {

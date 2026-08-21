@@ -13,6 +13,14 @@ This file is for working on the pipeline itself.
 - `infra/scripts/create-codebuild.sh` — push `infra/codebuild/buildspec.yml` changes to the CodeBuild project.
 - `infra/scripts/deploy-trigger.sh` — deploy the webhook Lambda.
 
+## Evals before deploy
+
+Run `e2e/run-evals.sh` (or `cd src/runtime && npm run eval -- [caseId ...]`) before
+deploying prompt/model/graph changes. It runs the graded ticket set in
+`e2e/evals/cases.json` through the DEPLOYED runtime, scores deterministically, writes a
+scorecard to `e2e/evals/results/`, and cleans up its Linear issues/PRs/branches. A full
+sweep costs real money (one pipeline run per pr-expected case).
+
 ## Terminology
 
 The plan critic is the **adversary** (adversarial review). Do not introduce "antagonist".
@@ -59,6 +67,10 @@ The plan critic is the **adversary** (adversarial review). Do not introduce "ant
 
 ## Conventions
 
+- **Claude sessions run under the bedrock-only role.** Both the buildspec and
+  `src/claude.ts` assume `etrm-agent-bedrock-only` and hand the subprocess ONLY those
+  creds, stripping the container role's credential source from its env. Never give a
+  claude subprocess ambient role creds.
 - **Workspaces are credential-less.** Claude Code sessions (runtime clone and CodeBuild)
   must never hold the GitHub PAT: remotes are scrubbed after clone, the PAT lives in
   unexported shell vars / prefix assignments, and only deterministic harness steps push.

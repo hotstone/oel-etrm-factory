@@ -1,0 +1,15 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::007460876082:role/claude-code-executor-role",
+          "arn:aws:iam::007460876082:role/etrm-factory-runtime-role"
+        ]
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}

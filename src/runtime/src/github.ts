@@ -23,3 +23,16 @@ export async function fetchPrDiff(prNumber: string): Promise<string> {
 export async function commentOnPr(prNumber: string, body: string): Promise<void> {
   await gh(`/issues/${prNumber}/comments`, { method: "POST", body: JSON.stringify({ body }) });
 }
+
+/** Changed file paths of a PR (eval scoring). */
+export async function fetchPrFiles(prNumber: string): Promise<string[]> {
+  const resp = await gh(`/pulls/${prNumber}/files?per_page=100`);
+  const files = (await resp.json()) as { filename: string }[];
+  return files.map((f) => f.filename);
+}
+
+/** Close a PR and delete its branch (eval cleanup). */
+export async function closePrAndBranch(prNumber: string, branch: string): Promise<void> {
+  await gh(`/pulls/${prNumber}`, { method: "PATCH", body: JSON.stringify({ state: "closed" }) });
+  await gh(`/git/refs/heads/${branch}`, { method: "DELETE" }).catch(() => {});
+}

@@ -1,5 +1,33 @@
 import { spawn } from "node:child_process";
+import { AssumeRoleCommand, STSClient } from "@aws-sdk/client-sts";
 import { CONFIG } from "./config.js";
+
+const sts = new STSClient({ region: CONFIG.region });
+let cachedCreds: { accessKeyId: string; secretAccessKey: string; sessionToken: string; expiresAt: number } | null = null;
+
+/**
+ * Short-lived credentials for the bedrock-only role. Claude Code subprocesses
+ * get ONLY these (and lose the container role's credential source), so a
+ * session cannot read secrets or touch any other AWS API.
+ */
+async function bedrockOnlyCreds() {
+  if (cachedCreds && cachedCreds.expiresAt - Date.now() > 5 * 60_000) return cachedCreds;
+  const resp = await sts.send(
+    new AssumeRoleCommand({
+      RoleArn: "arn:aws:iam::007460876082:role/etrm-agent-bedrock-only",
+      RoleSessionName: "claude-session",
+      DurationSeconds: 3600,
+    }),
+  );
+  const c = resp.Credentials!;
+  cachedCreds = {
+    accessKeyId: c.AccessKeyId!,
+    secretAccessKey: c.SecretAccessKey!,
+    sessionToken: c.SessionToken!,
+    expiresAt: c.Expiration!.getTime(),
+  };
+  return cachedCreds;
+}
 
 export interface ClaudeResult {
   text: string;
@@ -22,6 +50,15 @@ export async function runClaudePlanning(
 ): Promise<ClaudeResult> {
   const args = ["-p", "--permission-mode", "plan", "--output-format", "json"];
   if (resumeSessionId) args.push("--resume", resumeSessionId);
+  const creds = await bedrockOnlyCreds();
+  // Strip every ambient AWS credential source from the child env; inject only
+  // the bedrock-only role's static session creds.
+  const env: Record<string, string | undefined> = { ...process.env };
+  for (const k of Object.keys(env)) {
+    if (k.startsWith("AWS_CONTAINER_CREDENTIALS") || k === "AWS_CONTAINER_AUTHORIZATION_TOKEN" || k === "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE" || k === "AWS_WEB_IDENTITY_TOKEN_FILE" || k === "AWS_ROLE_ARN" || k === "AWS_PROFILE") {
+      delete env[k];
+    }
+  }
 
   const { stdout, stderr, code } = await new Promise<{
     stdout: string;
@@ -32,7 +69,10 @@ export async function runClaudePlanning(
       cwd,
       timeout: CONFIG.limits.claudeTimeoutMs,
       env: {
-        ...process.env,
+        ...env,
+        AWS_ACCESS_KEY_ID: creds.accessKeyId,
+        AWS_SECRET_ACCESS_KEY: creds.secretAccessKey,
+        AWS_SESSION_TOKEN: creds.sessionToken,
         CLAUDE_CODE_USE_BEDROCK: "1",
         AWS_REGION: CONFIG.region,
         ANTHROPIC_MODEL: CONFIG.models.claudeCode,

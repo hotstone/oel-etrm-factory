@@ -234,11 +234,25 @@ ${diff}
 A code review of the current branch found these blocking issues:
 ${blocking.map((b) => `- ${b}`).join("\n")}
 
-Fix them on top of the existing implementation. Original plan for reference:
+Fix them on top of the existing implementation. If, after investigating, you
+conclude a finding is wrong and no change is needed, make no changes at all.
+Original plan for reference:
 
 ${ctx.plan!}`,
         runLabel: `revision-${ctx.revisionRuns}`,
       });
+      if (ctx.executorRun.agentResult === "no-changes") {
+        // Implementer investigated and disagrees with the review — a judgment
+        // call for the human, not a failure.
+        await commentOnPr(
+          ctx.executorRun.prNumber,
+          `**Agent disagreement — human judgment needed.** The reviewer raised blocking findings, but the revision run concluded no change is warranted:\n\n${review.text}`,
+        );
+        return {
+          summary: `disagreement: implementer declined ${blocking.length} finding(s); posted to PR`,
+          usage: usageOf(inTok, outTok),
+        };
+      }
     }
   });
 

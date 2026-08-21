@@ -9,6 +9,8 @@ export interface ExecutorRun {
   prUrl: string;
   prNumber: string;
   buildId: string;
+  /** "success" or "no-changes" (revision runs where the implementer disagreed). */
+  agentResult: string;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -38,6 +40,7 @@ export async function runExecutorBuild(input: {
         { name: "ISSUE_TITLE", value: input.issueTitle, type: "PLAINTEXT" },
         { name: "ISSUE_URL", value: input.issueUrl, type: "PLAINTEXT" },
         { name: "PLAN_S3_URI", value: `s3://${CONFIG.artifactsBucket}/${key}`, type: "PLAINTEXT" },
+        { name: "RUN_LABEL", value: input.runLabel, type: "PLAINTEXT" },
       ],
     }),
   );
@@ -59,8 +62,9 @@ export async function runExecutorBuild(input: {
       );
       const prUrl = exported.get("PR_URL");
       const prNumber = exported.get("PR_NUMBER");
+      const agentResult = exported.get("AGENT_RESULT") ?? "success";
       if (!prUrl || !prNumber) throw new Error(`build ${buildId} succeeded but exported no PR info`);
-      return { prUrl, prNumber, buildId };
+      return { prUrl, prNumber, buildId, agentResult };
     }
     if (Date.now() > deadline) throw new Error(`executor build ${buildId} timed out`);
   }

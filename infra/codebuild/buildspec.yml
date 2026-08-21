@@ -109,24 +109,30 @@ phases:
 
   build:
     commands:
-      # 1. Let Claude Code implement the plan.
+      # 1. Let Claude Code implement the plan — under the bedrock-only role.
+      #    The session gets ONLY assumed bedrock-only creds; the container
+      #    role's credential source is removed from its env, so it cannot read
+      #    secrets or touch other AWS APIs. (Chained role sessions cap at 1h.)
       # (No pipe here: CodeBuild's shell is dash, which has no pipefail — redirect
       # preserves Claude Code's exit status, then print the result for the log.)
-      - cd "$WORKSPACE" && claude -p "$(cat /tmp/prompt.md)" --output-format json --dangerously-skip-permissions > /tmp/claude-output.json
+      - CREDS=$(aws sts assume-role --role-arn arn:aws:iam::007460876082:role/etrm-agent-bedrock-only --role-session-name claude-codebuild --duration-seconds 3600 --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text) && set -- $CREDS && cd "$WORKSPACE" && env -u AWS_CONTAINER_CREDENTIALS_RELATIVE_URI -u AWS_CONTAINER_CREDENTIALS_FULL_URI AWS_ACCESS_KEY_ID="$1" AWS_SECRET_ACCESS_KEY="$2" AWS_SESSION_TOKEN="$3" claude -p "$(cat /tmp/prompt.md)" --output-format json --dangerously-skip-permissions > /tmp/claude-output.json
       - cat /tmp/claude-output.json
-      # 2. Hard gates, independent of what Claude reports: changes exist, types check, tests pass.
-      - cd "$WORKSPACE" && test -n "$(git status --porcelain)" || { echo "FAIL - Claude Code made no changes"; exit 1; }
-      - cd "$WORKSPACE" && npm run typecheck
-      - cd "$WORKSPACE" && npm test
-      # 3. Commit and push.
-      - cd "$WORKSPACE" && git config user.name "etrm-factory-agent" && git config user.email "agent@users.noreply.github.com"
-      - 'cd "$WORKSPACE" && git add -A && git commit -m "${ISSUE_ID}: ${ISSUE_TITLE}" -m "Automated implementation. Plan and review trail on ${ISSUE_URL}"'
+      # 2. Detect changes. No changes on an INITIAL run is a failure; on a
+      #    revision run it means the implementer disagrees with the review —
+      #    a valid outcome the orchestrator escalates to the human.
+      - cd "$WORKSPACE" && if [ -n "$(git status --porcelain)" ]; then export HAVE_CHANGES=1; else export HAVE_CHANGES=0; fi
+      - '[ "$HAVE_CHANGES" = "1" ] || [ "${RUN_LABEL:-initial}" != "initial" ] || { echo "FAIL - Claude Code made no changes on initial run"; exit 1; }'
+      # 3. Hard gates + commit + push, only when there is something to ship.
+      - '[ "$HAVE_CHANGES" = "0" ] || (cd "$WORKSPACE" && npm run typecheck)'
+      - '[ "$HAVE_CHANGES" = "0" ] || (cd "$WORKSPACE" && npm test)'
+      - '[ "$HAVE_CHANGES" = "0" ] || (cd "$WORKSPACE" && git config user.name "etrm-factory-agent" && git config user.email "agent@users.noreply.github.com" && git add -A && git commit -m "${ISSUE_ID}: ${ISSUE_TITLE}" -m "Automated implementation. Plan and review trail on ${ISSUE_URL}")'
       # Re-fetch the PAT only for the push itself; the remote stays credential-less.
-      - cd "$WORKSPACE" && GH_PAT=$(aws secretsmanager get-secret-value --secret-id prod/github/pat --query SecretString --output text) && git push "https://x-access-token:${GH_PAT}@github.com/${REPO}.git" "$BRANCH"
-      # 4. Open the PR via the GitHub REST API (script written in pre_build).
+      - '[ "$HAVE_CHANGES" = "0" ] || (cd "$WORKSPACE" && GH_PAT=$(aws secretsmanager get-secret-value --secret-id prod/github/pat --query SecretString --output text) && git push "https://x-access-token:${GH_PAT}@github.com/${REPO}.git" "$BRANCH")'
+      # 4. Open (or find) the PR via the GitHub REST API (script from pre_build).
       #    Prefix assignment scopes the token to this one process.
       - GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id prod/github/pat --query SecretString --output text) python3 /tmp/create_pr.py
-      - . /tmp/pr.env && export AGENT_RESULT="success" && echo "PR_URL=$PR_URL PR_NUMBER=$PR_NUMBER"
+      - if [ "$HAVE_CHANGES" = "1" ]; then . /tmp/pr.env && export AGENT_RESULT="success"; else . /tmp/pr.env && export AGENT_RESULT="no-changes"; fi
+      - echo "AGENT_RESULT=$AGENT_RESULT PR_URL=$PR_URL"
 
   post_build:
     commands:
