@@ -18,4 +18,6 @@ ENV PATH="/app/node_modules/.bin:${PATH}"
 ENV HOME=/root
 
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+# ADOT preload registers a global tracer provider with SigV4 export to
+# CloudWatch before the app loads (activated by AGENT_OBSERVABILITY_ENABLED).
+CMD ["node", "--require", "@aws/aws-distro-opentelemetry-node-autoinstrumentation/register", "dist/index.js"]

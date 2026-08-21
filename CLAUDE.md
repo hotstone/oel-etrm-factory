@@ -44,6 +44,19 @@ The plan critic is the **adversary** (adversarial review). Do not introduce "ant
 - The webhook Lambda fires only on the **transition** to `agent-ready` and skips issues
   labelled `agent-in-progress`.
 
+## Observability
+
+- Tracing rides on **ADOT JS preloaded in the Dockerfile CMD** (`node --require
+  @aws/.../register`), activated by `AGENT_OBSERVABILITY_ENABLED=true` (set by
+  deploy-runtime.sh). ADOT owns the global tracer provider and SigV4-signs spans
+  to CloudWatch; AgentCore injects **no** OTLP endpoint and runs **no** local
+  collector, so a vanilla OTLP exporter silently exports to nowhere. Never call
+  Strands' `setupTracer` when ADOT is active (see `src/telemetry.ts`).
+- Strands' telemetry module imports the OTEL metrics exporter top-level — the
+  `@opentelemetry/*` deps in package.json are all required at boot.
+- Spans land in the `aws/spans` log group (CloudWatch GenAI observability /
+  Transaction Search); filter by `service.name = etrm_factory_pipeline.DEFAULT`.
+
 ## Conventions
 
 - **Workspaces are credential-less.** Claude Code sessions (runtime clone and CodeBuild)

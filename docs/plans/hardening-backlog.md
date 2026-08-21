@@ -43,4 +43,8 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
   creds for Bedrock), so a determined injected session could fetch it via the AWS CLI —
   closing that needs a split-role design or paid branch protection.
 - Stale `agent/*` branch cleanup for failed/abandoned runs.
-- Richer observability: AgentCore OTEL tracing beyond CloudWatch logs.
+- ✅ OTEL tracing (2026-08-21) — ADOT JS preload + Strands global-API spans + per-stage
+  withSpan bridges; full graph→stage→agent→model-call traces in `aws/spans`
+  (CloudWatch GenAI observability). Optional refinement: per-agent span destination via
+  `UNIFIED_TRACES_DESTINATION_ENABLED=true` + log-group resource policy.
+- o11y "Layer 1" still open: EMF run-summary metrics, dashboard, failure alarm.

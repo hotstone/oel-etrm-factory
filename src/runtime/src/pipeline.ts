@@ -21,6 +21,7 @@ import { runExecutorBuild, type ExecutorRun } from "./codebuild.js";
 import { CONFIG } from "./config.js";
 import { commentOnPr, fetchPrDiff } from "./github.js";
 import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
+import { withSpan } from "./telemetry.js";
 import { cloneWorkspace, removeWorkspace } from "./workspace.js";
 
 /**
@@ -63,7 +64,7 @@ class StepNode extends Node {
   }
   // eslint-disable-next-line require-yield
   async *handle(_input: MultiAgentInput, _state: MultiAgentState, _options?: NodeInputOptions): NodeGen {
-    const summary = await this.fn();
+    const summary = await withSpan(`pipeline.${this.id}`, { "node.id": this.id }, this.fn);
     return { content: [new TextBlock(summary)] };
   }
 }
@@ -195,6 +196,7 @@ ${ctx.plan!}`,
 
   const graph = new Graph({
     id: `pipeline-${issue.identifier}`,
+    traceAttributes: { "issue.id": issue.identifier, "gen_ai.conversation.id": issue.identifier },
     nodes: [analyzeNode, planNode, implementNode, reviewNode],
     edges: [
       { source: "analyze", target: "plan", handler: () => ctx.assessment?.suitable === true },

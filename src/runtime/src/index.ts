@@ -1,6 +1,16 @@
 import { BedrockAgentCoreApp } from "bedrock-agentcore/runtime";
 import { z } from "zod";
 import { runPipeline } from "./pipeline.js";
+import { initTelemetry } from "./telemetry.js";
+
+// Diagnostic: surface what observability plumbing the runtime injects.
+const otelEnv = Object.entries(process.env)
+  .filter(([k]) => /^OTEL|OBSERVABILITY|ADOT|XRAY/i.test(k))
+  .map(([k, v]) => `${k}=${v}`);
+console.log(`observability env: ${otelEnv.length ? otelEnv.join(" | ") : "(none injected)"}`);
+
+const tracing = initTelemetry();
+console.log(`otel tracing mode: ${tracing}`);
 
 const app = new BedrockAgentCoreApp({
   invocationHandler: {

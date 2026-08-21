@@ -61,6 +61,8 @@
       "Action": [
         "xray:PutTraceSegments",
         "xray:PutTelemetryRecords",
+        "xray:PutSpans",
+        "xray:PutSpansForIndexing",
         "cloudwatch:PutMetricData"
       ],
       "Resource": "*"

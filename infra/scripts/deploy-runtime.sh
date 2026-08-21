@@ -45,6 +45,7 @@ if [ -n "$EXISTING" ] && [ "$EXISTING" != "None" ]; then
     --agent-runtime-id "$EXISTING" \
     --agent-runtime-artifact "{\"containerConfiguration\": {\"containerUri\": \"${IMAGE_URI}:${TAG}\"}}" \
     --network-configuration '{"networkMode": "PUBLIC"}' \
+    --environment-variables AGENT_OBSERVABILITY_ENABLED=true \
     --role-arn "$ROLE_ARN" \
     --query 'agentRuntimeArn' --output text
   echo "updated runtime $RUNTIME_NAME to ${TAG}"
@@ -54,6 +55,7 @@ else
     --description "Linear ticket-to-PR pipeline (Strands graph + Claude Code)" \
     --agent-runtime-artifact "{\"containerConfiguration\": {\"containerUri\": \"${IMAGE_URI}:${TAG}\"}}" \
     --network-configuration '{"networkMode": "PUBLIC"}' \
+    --environment-variables AGENT_OBSERVABILITY_ENABLED=true \
     --role-arn "$ROLE_ARN" \
     --query 'agentRuntimeArn' --output text
   echo "created runtime $RUNTIME_NAME"
