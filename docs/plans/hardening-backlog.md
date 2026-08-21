@@ -22,9 +22,10 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
 - Analyzer strictness calibration — measurable now. ✅ Baseline sweep (2026-08-21):
   6/6 effective (5 scored + scope-bait amended after a local network drop mid-invoke;
   verified server-side: clean PR within allowed files). All three gate cases blocked
-  correctly, including the unknown-area probe. Harness follow-ups: set maxAttempts=1 on
-  the eval invoke client (SDK auto-retry double-ran a pipeline after a network blip) and
-  recover outcomes from Linear when the sync connection drops. Known gap probed by the advisory
+  correctly, including the unknown-area probe. Harness follow-ups: ✅ both done
+  (2026-08-21) — eval invoke client sets maxAttempts=1, and on a dropped connection the
+  runner polls Linear (the durable channel) to recover the real outcome instead of
+  scoring an infra failure; verified live against issues with known terminal states. Known gap probed by the advisory
   `unknown-area` case: the analyzer cannot see the repo, so tickets referencing
   nonexistent components may pass the gate.
 

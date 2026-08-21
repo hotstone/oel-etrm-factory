@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } from "@aws-sdk/client-bedrock-agentcore";
 import { CONFIG } from "./config.js";
 import { closePrAndBranch, fetchPrFiles } from "./github.js";
+import { recoverOutcomeFromLinear } from "./eval-recovery.js";
 import { archiveIssue, commentOnIssue, createIssue } from "./linear.js";
 import type { PipelineOutcome } from "./pipeline.js";
 
@@ -70,7 +71,16 @@ async function runCase(c: EvalCase): Promise<CaseResult> {
   try {
     outcome = await invokePipeline(issue.identifier);
   } catch (err) {
-    outcome = { status: "failed", issue: issue.identifier, detail: String(err) };
+    // The pipeline may still be running (or finished) server-side even though
+    // our connection died — recover the outcome from the durable channel.
+    console.log(`invoke connection lost (${String(err).slice(0, 120)}); polling Linear for the outcome...`);
+    const recovered = await recoverOutcomeFromLinear(issue.identifier);
+    if (recovered) {
+      notes.push("outcome recovered from Linear after connection loss");
+      outcome = recovered;
+    } else {
+      outcome = { status: "failed", issue: issue.identifier, detail: `invoke failed, no outcome on Linear: ${String(err).slice(0, 200)}` };
+    }
   }
   console.log(`outcome: ${outcome.status} ${outcome.prUrl ?? ""} ${outcome.detail}`);
 
