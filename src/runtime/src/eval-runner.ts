@@ -40,6 +40,9 @@ const RUNTIME_ARN = `arn:aws:bedrock-agentcore:${CONFIG.region}:007460876082:run
 const agentcore = new BedrockAgentCoreClient({
   region: CONFIG.region,
   requestHandler: { requestTimeout: 45 * 60_000 },
+  // Never auto-retry a sync pipeline invoke: a retry after a dropped connection
+  // starts a SECOND full pipeline run (observed with a local DNS flake).
+  maxAttempts: 1,
 });
 
 async function invokePipeline(issueId: string): Promise<PipelineOutcome> {

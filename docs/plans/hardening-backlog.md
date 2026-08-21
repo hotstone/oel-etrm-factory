@@ -19,8 +19,12 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
 
 - ✅ Reviewer output discipline (2026-08-21) — findings-only output, posted verbatim.
 - ✅ Adversary scope-creep check (2026-08-21) — work beyond the criteria is a blocking objection.
-- Analyzer strictness calibration — now measurable: eval harness built (e2e/evals +
-  `npm run eval`); baseline sweep pending. Known gap probed by the advisory
+- Analyzer strictness calibration — measurable now. ✅ Baseline sweep (2026-08-21):
+  6/6 effective (5 scored + scope-bait amended after a local network drop mid-invoke;
+  verified server-side: clean PR within allowed files). All three gate cases blocked
+  correctly, including the unknown-area probe. Harness follow-ups: set maxAttempts=1 on
+  the eval invoke client (SDK auto-retry double-ran a pipeline after a network blip) and
+  recover outcomes from Linear when the sync connection drops. Known gap probed by the advisory
   `unknown-area` case: the analyzer cannot see the repo, so tickets referencing
   nonexistent components may pass the gate.
 
