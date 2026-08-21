@@ -21,7 +21,7 @@ aws bedrock-agentcore invoke-agent-runtime --region "$REGION" \
   --runtime-session-id "$SESSION_ID" \
   --content-type application/json \
   --accept application/json \
-  --payload "{\"issueId\": \"${ISSUE_ID}\"}" \
+  --payload "{\"issueId\": \"${ISSUE_ID}\", \"sync\": true}" \
   --cli-binary-format raw-in-base64-out \
   --cli-read-timeout 0 \
   "$OUT"
