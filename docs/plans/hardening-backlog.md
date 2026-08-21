@@ -40,6 +40,12 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
 
 ## Security / ops
 
+- Newer Bedrock models (Sonnet 5 / Opus 4.8 / Opus 5): marketplace agreements ACTIVE and
+  use-case form accepted (2026-08-21), but invocation is denied account-wide with
+  "not available for this account... contact AWS Sales" across all regions/profiles —
+  an allowlist gate above the marketplace layer. Action: AWS support case or account
+  team. Zero cost while unused; pipeline stays on the 4.6 tier meanwhile.
+
 - ✅ GitHub PAT rotated (2026-08-21) — scoped to the target repo, contents + PRs, no admin;
   old token revoked and verified dead.
 - Kill switch documented (disable the Linear webhook) — see README.
@@ -57,4 +63,4 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
   withSpan bridges; full graph→stage→agent→model-call traces in `aws/spans`
   (CloudWatch GenAI observability). Optional refinement: per-agent span destination via
   `UNIFIED_TRACES_DESTINATION_ENABLED=true` + log-group resource policy.
-- ✅ o11y Layer 1 (2026-08-21) — EMF metrics (runs/duration by outcome, per-stage duration + tokens, loop counts), dashboard etrm-factory-pipeline, alarm etrm-factory-pipeline-failed (no SNS action wired yet).
+- ✅ o11y Layer 1 (2026-08-21) — EMF metrics (runs/duration by outcome, per-stage duration + tokens, loop counts), dashboard etrm-factory-pipeline, alarm etrm-factory-pipeline-failed, wired to SNS topic etrm-factory-alerts (2026-08-21; email subscription still needs a destination).
