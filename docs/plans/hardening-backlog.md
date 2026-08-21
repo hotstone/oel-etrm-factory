@@ -27,8 +27,7 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
   Claude Code + AWS CLI, ARM), project switched to ARM_CONTAINER.
 - npm cache for the target repo's `npm ci` (CodeBuild local or S3 cache).
 - Tighter CodeBuild poll interval; reserved capacity only if volume justifies it.
-- Cost telemetry: per-run token + build-minute accounting (graph results carry per-node
-  usage), plus a per-run budget cap.
+- Per-run budget cap (cost visibility is done via EMF token metrics; the abort guardrail is not).
 
 ## Security / ops
 
@@ -47,4 +46,4 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
   withSpan bridges; full graph→stage→agent→model-call traces in `aws/spans`
   (CloudWatch GenAI observability). Optional refinement: per-agent span destination via
   `UNIFIED_TRACES_DESTINATION_ENABLED=true` + log-group resource policy.
-- o11y "Layer 1" still open: EMF run-summary metrics, dashboard, failure alarm.
+- ✅ o11y Layer 1 (2026-08-21) — EMF metrics (runs/duration by outcome, per-stage duration + tokens, loop counts), dashboard etrm-factory-pipeline, alarm etrm-factory-pipeline-failed (no SNS action wired yet).
