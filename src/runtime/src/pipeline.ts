@@ -21,6 +21,7 @@ import { runExecutorBuild, type ExecutorRun } from "./codebuild.js";
 import { CONFIG } from "./config.js";
 import { commentOnPr, fetchPrDiff } from "./github.js";
 import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
+import { emitRunMetrics, type StageStat } from "./metrics.js";
 import { withSpan } from "./telemetry.js";
 import { cloneWorkspace, removeWorkspace } from "./workspace.js";
 
@@ -52,20 +53,35 @@ export interface PipelineOutcome {
   prUrl?: string;
 }
 
-type NodeGen = AsyncGenerator<MultiAgentStreamEvent, { content: TextBlock[] }, undefined>;
+interface StepUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
 
-/** Custom node wrapping an async function; content is for trace/observability. */
+interface StepOutput {
+  summary: string;
+  usage?: StepUsage;
+}
+
+function usageOf(input: number, output: number): StepUsage {
+  return { inputTokens: input, outputTokens: output, totalTokens: input + output };
+}
+
+type NodeGen = AsyncGenerator<MultiAgentStreamEvent, { content: TextBlock[]; usage?: StepUsage }, undefined>;
+
+/** Custom node wrapping an async function; content/usage feed traces + metrics. */
 class StepNode extends Node {
   constructor(
     id: string,
-    private readonly fn: () => Promise<string>,
+    private readonly fn: () => Promise<StepOutput>,
   ) {
     super(id, {});
   }
   // eslint-disable-next-line require-yield
   async *handle(_input: MultiAgentInput, _state: MultiAgentState, _options?: NodeInputOptions): NodeGen {
-    const summary = await withSpan(`pipeline.${this.id}`, { "node.id": this.id }, this.fn);
-    return { content: [new TextBlock(summary)] };
+    const out = await withSpan(`pipeline.${this.id}`, { "node.id": this.id }, this.fn);
+    return { content: [new TextBlock(out.summary)], usage: out.usage };
   }
 }
 
@@ -75,7 +91,17 @@ an implementation plan in markdown with sections: Problem, Changes (numbered, pe
 specific), Out of scope, Verification. The plan will be executed by another engineer who
 has only your plan and the repo — name real files, functions, and test commands.`;
 
+function stagesFrom(results: { nodeId: string; duration: number; usage?: { inputTokens: number; outputTokens: number } }[]): StageStat[] {
+  return results.map((r) => ({
+    stage: r.nodeId,
+    durationMs: Math.round(r.duration),
+    ...(r.usage ? { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens } : {}),
+  }));
+}
+
 export async function runPipeline(issueIdentifier: string): Promise<PipelineOutcome> {
+  const runStart = Date.now();
+  let stages: StageStat[] = [];
   const issue = await fetchIssue(issueIdentifier);
   const ctx: RunContext = { issue, critiques: [], revisionRuns: 0 };
   const analyzer = makeAnalyzer();
@@ -84,10 +110,16 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
   const analyzeNode = new StepNode("analyze", async () => {
     const result = await analyzer.invoke(analyzerPrompt(ctx.issue));
     ctx.assessment = AssessmentSchema.parse(result.structuredOutput);
-    return JSON.stringify(ctx.assessment);
+    const u = result.metrics?.accumulatedUsage;
+    return {
+      summary: JSON.stringify(ctx.assessment),
+      usage: u ? usageOf(u.inputTokens, u.outputTokens) : undefined,
+    };
   });
 
   const planNode = new StepNode("plan", async () => {
+    let inTok = 0;
+    let outTok = 0;
     ctx.workspace = await cloneWorkspace();
     const assessment = ctx.assessment!;
     const criteria = assessment.acceptanceCriteria.map((c) => `- ${c}`).join("\n");
@@ -105,9 +137,16 @@ ${criteria}`,
     );
     ctx.plan = first.text;
     ctx.planSessionId = first.sessionId;
+    inTok += first.inputTokens;
+    outTok += first.outputTokens;
 
     for (let i = 0; i < CONFIG.limits.critiqueIterations; i++) {
       const critiqueResult = await adversary.invoke(adversaryPrompt(assessment, ctx.plan));
+      const cu = critiqueResult.metrics?.accumulatedUsage;
+      if (cu) {
+        inTok += cu.inputTokens;
+        outTok += cu.outputTokens;
+      }
       const critique = CritiqueSchema.parse(critiqueResult.structuredOutput);
       ctx.critiques.push(critique);
       const blocking = critique.objections.filter((o) => o.severity === "blocking");
@@ -123,8 +162,10 @@ Revise the plan to address them. Output the full revised plan in the same format
       );
       ctx.plan = revised.text;
       ctx.planSessionId = revised.sessionId;
+      inTok += revised.inputTokens;
+      outTok += revised.outputTokens;
     }
-    return ctx.plan;
+    return { summary: ctx.plan, usage: usageOf(inTok, outTok) };
   });
 
   const implementNode = new StepNode("implement", async () => {
@@ -135,10 +176,12 @@ Revise the plan to address them. Output the full revised plan in the same format
       plan: ctx.plan!,
       runLabel: "initial",
     });
-    return ctx.executorRun.prUrl;
+    return { summary: ctx.executorRun.prUrl };
   });
 
   const reviewNode = new StepNode("review", async () => {
+    let inTok = 0;
+    let outTok = 0;
     for (;;) {
       const diff = await fetchPrDiff(ctx.executorRun!.prNumber);
       const review = await runClaudePlanning(
@@ -163,18 +206,23 @@ ${diff}
 \`\`\``,
       );
 
+      inTok += review.inputTokens;
+      outTok += review.outputTokens;
       const blocking = review.text
         .split("\n")
         .filter((l) => l.toLowerCase().includes("[blocking]"));
       ctx.reviewFindings = blocking;
-      if (blocking.length === 0) return "clean";
+      if (blocking.length === 0) return { summary: "clean", usage: usageOf(inTok, outTok) };
       if (ctx.revisionRuns >= CONFIG.limits.reviewIterations) {
         // Cap hit: surface the findings on the PR for the human reviewer.
         await commentOnPr(
           ctx.executorRun!.prNumber,
           `**Agent review — unresolved findings** (revision cap reached; human attention needed):\n\n${review.text}`,
         );
-        return `cap-hit: ${blocking.length} unresolved finding(s) posted to PR`;
+        return {
+          summary: `cap-hit: ${blocking.length} unresolved finding(s) posted to PR`,
+          usage: usageOf(inTok, outTok),
+        };
       }
       ctx.revisionRuns++;
       ctx.executorRun = await runExecutorBuild({
@@ -210,6 +258,7 @@ ${ctx.plan!}`,
   await setAgentLabel(issue.id, "agentInProgress");
   try {
     const result = await graph.invoke(`Deliver ticket ${issue.identifier}`);
+    stages = stagesFrom(result.results);
 
     if (ctx.assessment && !ctx.assessment.suitable) {
       const questions = ctx.assessment.missingInfo.map((q) => `- ${q}`).join("\n");
@@ -218,7 +267,9 @@ ${ctx.plan!}`,
         `**Agent: not picking this up yet.** The ticket needs clarification before automated implementation:\n\n${questions || "- The request is too vague to derive testable acceptance criteria."}\n\nAnswer above and re-apply the \`agent-ready\` label to retry.`,
       );
       await setAgentLabel(issue.id, "agentBlocked");
-      return { status: "blocked", issue: issue.identifier, detail: "analyzer gate: not suitable" };
+      const outcome: PipelineOutcome = { status: "blocked", issue: issue.identifier, detail: "analyzer gate: not suitable" };
+      emitRunMetrics({ issue: issue.identifier, outcome: "blocked", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, detail: outcome.detail });
+      return outcome;
     }
 
     if (result.status !== "COMPLETED" || !ctx.executorRun) {
@@ -233,16 +284,19 @@ ${ctx.plan!}`,
       `**Agent: PR ready for review.** ${ctx.executorRun.prUrl}${findingsNote}`,
     );
     await setAgentLabel(issue.id, null);
-    return {
+    const outcome: PipelineOutcome = {
       status: "completed",
       issue: issue.identifier,
       detail: findingsNote.trim(),
       prUrl: ctx.executorRun.prUrl,
     };
+    emitRunMetrics({ issue: issue.identifier, outcome: "completed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, prUrl: outcome.prUrl, detail: outcome.detail });
+    return outcome;
   } catch (err) {
     const message = (err instanceof Error ? err.message : String(err)).slice(0, 600);
     await commentOnIssue(issue.id, `**Agent: pipeline failed.** ${message}`).catch(() => {});
     await setAgentLabel(issue.id, "agentBlocked").catch(() => {});
+    emitRunMetrics({ issue: issue.identifier, outcome: "failed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, detail: message });
     return { status: "failed", issue: issue.identifier, detail: message };
   } finally {
     if (ctx.workspace) await removeWorkspace(ctx.workspace).catch(() => {});

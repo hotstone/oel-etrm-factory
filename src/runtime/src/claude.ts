@@ -4,6 +4,8 @@ import { CONFIG } from "./config.js";
 export interface ClaudeResult {
   text: string;
   sessionId: string;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 /**
@@ -54,9 +56,19 @@ export async function runClaudePlanning(
       `claude exited with code ${code}: ${(stderr || stdout).slice(-800).trim() || "(no output)"}`,
     );
   }
-  const parsed = JSON.parse(stdout) as { result?: string; session_id?: string; is_error?: boolean };
+  const parsed = JSON.parse(stdout) as {
+    result?: string;
+    session_id?: string;
+    is_error?: boolean;
+    usage?: { input_tokens?: number; output_tokens?: number };
+  };
   if (parsed.is_error || typeof parsed.result !== "string" || !parsed.session_id) {
     throw new Error(`claude session failed: ${stdout.slice(0, 500)}`);
   }
-  return { text: parsed.result, sessionId: parsed.session_id };
+  return {
+    text: parsed.result,
+    sessionId: parsed.session_id,
+    inputTokens: parsed.usage?.input_tokens ?? 0,
+    outputTokens: parsed.usage?.output_tokens ?? 0,
+  };
 }
