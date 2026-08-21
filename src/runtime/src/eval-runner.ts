@@ -120,7 +120,24 @@ if (!selected.length) {
 }
 
 const results: CaseResult[] = [];
-for (const c of selected) results.push(await runCase(c));
+for (const c of selected) {
+  try {
+    results.push(await runCase(c));
+  } catch (err) {
+    // Infra failure (network, API outage) — record it, keep sweeping.
+    console.error(`case ${c.id} infra failure:`, err);
+    results.push({
+      id: c.id,
+      issue: "n/a",
+      expected: c.expected,
+      outcome: "infra-error",
+      pass: false,
+      advisory: Boolean(c.advisory),
+      notes: [String(err).slice(0, 300)],
+      durationMs: 0,
+    });
+  }
+}
 
 const failures = results.filter((r) => !r.pass && !r.advisory);
 const advisoryFails = results.filter((r) => !r.pass && r.advisory);
