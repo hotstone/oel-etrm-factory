@@ -18,6 +18,20 @@ npm install --no-fund --no-audit --omit=dev >/dev/null
 rm -f /tmp/trigger.zip
 zip -qr /tmp/trigger.zip index.mjs node_modules package.json
 
+echo "== Idempotency table =="
+if ! aws dynamodb describe-table --table-name etrm-factory-runs --region "$REGION" >/dev/null 2>&1; then
+  aws dynamodb create-table --table-name etrm-factory-runs --region "$REGION" \
+    --attribute-definitions AttributeName=issueId,AttributeType=S \
+    --key-schema AttributeName=issueId,KeyType=HASH \
+    --billing-mode PAY_PER_REQUEST --query 'TableDescription.TableStatus' --output text
+  aws dynamodb wait table-exists --table-name etrm-factory-runs --region "$REGION"
+  aws dynamodb update-time-to-live --table-name etrm-factory-runs --region "$REGION" \
+    --time-to-live-specification Enabled=true,AttributeName=ttl >/dev/null
+  echo "created table etrm-factory-runs (TTL on)"
+else
+  echo "table etrm-factory-runs exists"
+fi
+
 echo "== IAM role =="
 if ! aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
   aws iam create-role --role-name "$ROLE_NAME" \

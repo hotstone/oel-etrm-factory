@@ -4,9 +4,9 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
 
 ## Reliability / correctness
 
-- Webhook idempotency beyond the label guard — Linear redelivers on slow ACKs; the
-  `agent-in-progress` label has a seconds-wide race window. DynamoDB idempotency key on
-  issue ID, or accept the dupe risk explicitly.
+- ✅ Webhook idempotency (2026-08-21) — DynamoDB conditional claim (table
+  etrm-factory-runs, 2h TTL): exactly one delivery per issue wins; duplicates are skipped
+  at the Lambda.
 - ✅ Revision-run "no changes" edge (2026-08-21) — a change-less revision run now exports
   AGENT_RESULT=no-changes; the review loop posts an "agent disagreement" comment to the PR
   and completes instead of failing.
@@ -35,7 +35,8 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
   Claude Code + AWS CLI, ARM), project switched to ARM_CONTAINER.
 - npm cache for the target repo's `npm ci` (CodeBuild local or S3 cache).
 - Tighter CodeBuild poll interval; reserved capacity only if volume justifies it.
-- Per-run budget cap (cost visibility is done via EMF token metrics; the abort guardrail is not).
+- ✅ Per-run token budget cap (2026-08-21) — maxRunTokens in config; checked before plan
+  revisions and revision builds; exceeding aborts with a clear failure comment.
 
 ## Security / ops
 

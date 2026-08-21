@@ -3,6 +3,7 @@
 // invoke the runtime in async mode (returns immediately), ACK Linear.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } from "@aws-sdk/client-bedrock-agentcore";
+import { ConditionalCheckFailedException, DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 
 const REGION = "ap-southeast-2";
@@ -13,6 +14,8 @@ const AGENT_IN_PROGRESS_LABEL = "46bd9a14-51e1-4434-a097-2fa43cdf1cac";
 
 const agentcore = new BedrockAgentCoreClient({ region: REGION });
 const secrets = new SecretsManagerClient({ region: REGION });
+const dynamo = new DynamoDBClient({ region: REGION });
+const RUNS_TABLE = process.env.RUNS_TABLE ?? "etrm-factory-runs";
 let cachedSecret;
 
 async function webhookSecret() {
@@ -59,6 +62,30 @@ export async function handler(event) {
   }
 
   const issueId = payload.data.identifier;
+
+  // Idempotency claim: Linear redelivers webhooks, and the agent-in-progress
+  // label guard has a seconds-wide race window. A conditional write makes
+  // exactly one delivery win per issue per 2h window.
+  try {
+    await dynamo.send(
+      new PutItemCommand({
+        TableName: RUNS_TABLE,
+        Item: {
+          issueId: { S: issueId },
+          claimedAt: { S: new Date().toISOString() },
+          ttl: { N: String(Math.floor(Date.now() / 1000) + 2 * 3600) },
+        },
+        ConditionExpression: "attribute_not_exists(issueId)",
+      }),
+    );
+  } catch (err) {
+    if (err instanceof ConditionalCheckFailedException) {
+      console.log(`duplicate delivery for ${issueId}; skipping`);
+      return ok({ skipped: "duplicate delivery", issue: issueId });
+    }
+    throw err;
+  }
+
   await agentcore.send(
     new InvokeAgentRuntimeCommand({
       agentRuntimeArn: RUNTIME_ARN,

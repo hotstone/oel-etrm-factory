@@ -34,7 +34,10 @@ import { cloneWorkspace, removeWorkspace } from "./workspace.js";
  * execution. The plan⇄adversary and review⇄revision loops therefore run
  * imperatively *inside* the plan and review nodes, with hard iteration caps.
  */
+class BudgetExceededError extends Error {}
+
 interface RunContext {
+  tokensUsed: number;
   issue: LinearIssue;
   workspace?: string;
   assessment?: Assessment;
@@ -103,7 +106,17 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
   const runStart = Date.now();
   let stages: StageStat[] = [];
   const issue = await fetchIssue(issueIdentifier);
-  const ctx: RunContext = { issue, critiques: [], revisionRuns: 0 };
+  const ctx: RunContext = { tokensUsed: 0, issue, critiques: [], revisionRuns: 0 };
+  const spend = (input: number, output: number) => {
+    ctx.tokensUsed += input + output;
+  };
+  const assertBudget = (about: string) => {
+    if (ctx.tokensUsed > CONFIG.limits.maxRunTokens) {
+      throw new BudgetExceededError(
+        `token budget exceeded before ${about}: ${ctx.tokensUsed} > ${CONFIG.limits.maxRunTokens}`,
+      );
+    }
+  };
   const analyzer = makeAnalyzer();
   const adversary = makeAdversary();
 
@@ -111,6 +124,7 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
     const result = await analyzer.invoke(analyzerPrompt(ctx.issue));
     ctx.assessment = AssessmentSchema.parse(result.structuredOutput);
     const u = result.metrics?.accumulatedUsage;
+    if (u) spend(u.inputTokens, u.outputTokens);
     return {
       summary: JSON.stringify(ctx.assessment),
       usage: u ? usageOf(u.inputTokens, u.outputTokens) : undefined,
@@ -139,6 +153,7 @@ ${criteria}`,
     ctx.planSessionId = first.sessionId;
     inTok += first.inputTokens;
     outTok += first.outputTokens;
+    spend(first.inputTokens, first.outputTokens);
 
     for (let i = 0; i < CONFIG.limits.critiqueIterations; i++) {
       const critiqueResult = await adversary.invoke(adversaryPrompt(assessment, ctx.plan));
@@ -146,11 +161,13 @@ ${criteria}`,
       if (cu) {
         inTok += cu.inputTokens;
         outTok += cu.outputTokens;
+        spend(cu.inputTokens, cu.outputTokens);
       }
       const critique = CritiqueSchema.parse(critiqueResult.structuredOutput);
       ctx.critiques.push(critique);
       const blocking = critique.objections.filter((o) => o.severity === "blocking");
       if (critique.approved || blocking.length === 0) break;
+      assertBudget("plan revision");
 
       const revised = await runClaudePlanning(
         ctx.workspace,
@@ -164,6 +181,7 @@ Revise the plan to address them. Output the full revised plan in the same format
       ctx.planSessionId = revised.sessionId;
       inTok += revised.inputTokens;
       outTok += revised.outputTokens;
+      spend(revised.inputTokens, revised.outputTokens);
     }
     return { summary: ctx.plan, usage: usageOf(inTok, outTok) };
   });
@@ -208,6 +226,7 @@ ${diff}
 
       inTok += review.inputTokens;
       outTok += review.outputTokens;
+      spend(review.inputTokens, review.outputTokens);
       const blocking = review.text
         .split("\n")
         .filter((l) => l.toLowerCase().includes("[blocking]"));
@@ -225,6 +244,7 @@ ${diff}
         };
       }
       ctx.revisionRuns++;
+      assertBudget("revision build");
       ctx.executorRun = await runExecutorBuild({
         issueId: ctx.issue.identifier,
         issueTitle: ctx.issue.title,

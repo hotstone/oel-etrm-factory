@@ -25,6 +25,10 @@ export const CONFIG = {
     },
   },
   limits: {
+    // Per-run LLM token budget (input+output, all stages incl. Claude Code
+    // sessions in the runtime — CodeBuild sessions are bounded by the build
+    // timeout instead). Exceeding it aborts the run with a clear failure.
+    maxRunTokens: 400_000,
     critiqueIterations: 2, // plan ⇄ adversary rounds after the initial plan
     reviewIterations: 1, // revision builds triggered by review findings
     codebuildPollMs: 20_000,
