@@ -7,7 +7,7 @@ export const CONFIG = {
     // Single-call agents (analyzer, adversary).
     light: "au.anthropic.claude-haiku-4-5-20251001-v1:0",
   },
-  repo: "hotstone/etrmfactory",
+  repo: "hotstone/oel-factory-testproject",
   codebuildProject: "claude-code-executor",
   artifactsBucket: "etrmfactory-agent-artifacts-007460876082",
   secrets: {

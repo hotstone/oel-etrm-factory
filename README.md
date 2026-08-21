@@ -6,7 +6,7 @@ codebase, adversarially critiques the plan, implements it with Claude Code, revi
 and opens a pull request — or blocks the ticket with clarifying questions. It always ends at
 a **human-reviewed PR**, never a merge.
 
-Target repository: [`hotstone/etrmfactory`](https://github.com/hotstone/etrmfactory) (a small
+Target repository: [`hotstone/oel-factory-testproject`](https://github.com/hotstone/oel-factory-testproject) (a small
 ETRM library used as the test bed). Region: `ap-southeast-2`.
 
 ## Flow

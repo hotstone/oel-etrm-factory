@@ -18,7 +18,7 @@ version: 0.2
 
 env:
   variables:
-    REPO: "hotstone/etrmfactory"
+    REPO: "hotstone/oel-factory-testproject"
     CLAUDE_CODE_USE_BEDROCK: "1"
     ANTHROPIC_MODEL: "au.anthropic.claude-opus-4-6-v1"
     ANTHROPIC_SMALL_FAST_MODEL: "au.anthropic.claude-haiku-4-5-20251001-v1:0"

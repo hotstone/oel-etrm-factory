@@ -23,7 +23,7 @@ The plan critic is the **adversary** (adversarial review). Do not introduce "ant
 - Models are Bedrock **`au.` inference profile IDs**; bare `anthropic.*` model IDs are
   rejected in ap-southeast-2. Only Opus 4.6 / Sonnet 4.6/4.5 / Haiku 4.5 are granted.
 - `prod/linear/apikey` is JSON-wrapped (`{"api-key": ...}`); `prod/github/pat` is a plain string.
-- The pipeline targets one repo (`hotstone/etrmfactory`), hardcoded in config.
+- The pipeline targets one repo (`hotstone/oel-factory-testproject`), hardcoded in config.
 
 ## Gotchas (each cost a debugging cycle — don't rediscover them)
 
