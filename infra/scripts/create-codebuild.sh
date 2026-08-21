@@ -8,7 +8,7 @@ ACCOUNT="007460876082"
 BUCKET="etrmfactory-agent-artifacts-${ACCOUNT}"
 ROLE_NAME="claude-code-executor-role"
 PROJECT="claude-code-executor"
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 echo "== S3 artifacts bucket =="
 if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
@@ -35,7 +35,7 @@ aws iam put-role-policy --role-name "$ROLE_NAME" \
 echo "attached inline policy"
 
 echo "== CodeBuild project =="
-BUILDSPEC_JSON=$(python3 -c "import json,sys; print(json.dumps(open(sys.argv[1]).read()))" "${REPO_ROOT}/codebuild/buildspec.yml")
+BUILDSPEC_JSON=$(python3 -c "import json,sys; print(json.dumps(open(sys.argv[1]).read()))" "${REPO_ROOT}/infra/codebuild/buildspec.yml")
 cat > /tmp/codebuild-project.json <<EOF
 {
   "name": "${PROJECT}",

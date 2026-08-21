@@ -7,13 +7,13 @@ REGION="ap-southeast-2"
 ACCOUNT="007460876082"
 FN_NAME="etrm-factory-trigger"
 ROLE_NAME="etrm-factory-trigger-role"
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RUNTIME_ARN=$(aws bedrock-agentcore-control list-agent-runtimes --region "$REGION" \
   --query "agentRuntimes[?agentRuntimeName=='etrm_factory_pipeline'].agentRuntimeArn" --output text)
 [ -n "$RUNTIME_ARN" ] || { echo "pipeline runtime not found"; exit 1; }
 
 echo "== package =="
-cd "${REPO_ROOT}/trigger"
+cd "${REPO_ROOT}/src/trigger"
 npm install --no-fund --no-audit --omit=dev >/dev/null
 rm -f /tmp/trigger.zip
 zip -qr /tmp/trigger.zip index.mjs node_modules package.json
