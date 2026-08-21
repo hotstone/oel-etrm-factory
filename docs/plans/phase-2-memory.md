@@ -15,12 +15,39 @@ Goal: reviewer findings become durable lessons that brief future runs. Design ag
    - record provenance (ticket ID, date, files) so lessons can be audited and expired.
 2. **Memory store** — AgentCore Memory, long-term records with semantic search, namespace
    per target repo. Strands has native integration; retrieval goes through boto3/SDK.
-3. **Retrieval (deterministic code, not an agent)**:
+3. **Retrieval (deterministic code, not an agent)** — three consumers, one lesson used
+   three ways (defense in depth: planner avoids designing the mistake in, implementer
+   avoids writing it, reviewer catches it if it slipped through):
    - before the planner: query = ticket summary + affected areas from the analyzer;
    - before the executor: query = the approved plan (better signal: real file names);
-     inject as a lessons file written into the workspace/plan for Claude Code.
+     inject as a lessons file written into the workspace/plan for Claude Code;
+   - before the reviewer: query = **the diff** (the strongest signal of the three — the
+     ground truth of what changed). Same lessons-file injection as the executor.
    - top 3–5 above a similarity threshold, clearly delimited, with a "verify each still
      applies" hedge.
+
+## Reviewer-specific guards
+
+The reviewer is both the best retrieval consumer (its query is the actual diff) and the
+memory's *source*, which creates two hazards; both have prompt/curator-level fixes:
+
+1. **Anchoring vs fresh eyes.** Injected lessons must not displace the independent pass.
+   Sequence the review prompt: *phase 1 — review the diff blind and record findings;
+   phase 2 — additionally verify each injected lesson against the diff, reporting only
+   ones that actually apply.* Recall boost without contaminating the unprimed pass.
+   (Priming implementer and reviewer with the same known failure modes is desirable
+   correlation — both defend the same traps; what stays forbidden is sharing this-run
+   session context.)
+2. **Echo loop.** reviewer findings → curator → memory → reviewer prompt → findings…
+   A lesson could self-amplify regardless of whether the issue still exists. Fix: the
+   reviewer tags findings that originated from an injected lesson (e.g.
+   `[lesson:<memory-id>]`); the curator may refresh that lesson's last-seen provenance
+   but must never create or strengthen a lesson from a finding the lesson itself
+   prompted. Only organically-discovered findings mint new memory.
+
+Lessons that are mechanically checkable never reach the reviewer at all — the two-tier
+policy routes them to lint rules/tests in the target repo, so reviewer attention is spent
+only on the fuzzy, judgment-requiring residue.
 
 ## Two-tier lesson policy
 
