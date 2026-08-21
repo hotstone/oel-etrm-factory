@@ -4,7 +4,7 @@ export const CONFIG = {
     // Claude Code stages (planner, reviewer) — strongest granted model.
     claudeCode: "au.anthropic.claude-opus-4-6-v1",
     claudeCodeSmallFast: "au.anthropic.claude-haiku-4-5-20251001-v1:0",
-    // Single-call agents (analyzer, antagonist).
+    // Single-call agents (analyzer, adversary).
     light: "au.anthropic.claude-haiku-4-5-20251001-v1:0",
   },
   repo: "hotstone/etrmfactory",
@@ -25,7 +25,7 @@ export const CONFIG = {
     },
   },
   limits: {
-    critiqueIterations: 2, // plan ⇄ antagonist rounds after the initial plan
+    critiqueIterations: 2, // plan ⇄ adversary rounds after the initial plan
     reviewIterations: 1, // revision builds triggered by review findings
     codebuildPollMs: 20_000,
     codebuildTimeoutMs: 55 * 60_000,

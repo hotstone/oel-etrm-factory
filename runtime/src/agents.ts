@@ -43,9 +43,9 @@ guess the author's intent. Vague aspirations ("make it better") are not suitable
 }
 
 /** One-call adversarial plan review against the acceptance criteria. */
-export function makeAntagonist(): Agent {
+export function makeAdversary(): Agent {
   return new Agent({
-    id: "antagonist",
+    id: "adversary",
     printer: false,
     model: lightModel(),
     structuredOutputSchema: CritiqueSchema,
@@ -64,7 +64,7 @@ export function analyzerPrompt(issue: LinearIssue): string {
   return `Assess this ticket:\n\n# ${issue.identifier}: ${issue.title}\n\n${issue.description}${comments}`;
 }
 
-export function antagonistPrompt(assessment: Assessment, plan: string): string {
+export function adversaryPrompt(assessment: Assessment, plan: string): string {
   return `Acceptance criteria:\n${assessment.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}
 
 Implementation plan to review:

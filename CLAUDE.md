@@ -1,0 +1,52 @@
+# etrm-factory — agent pipeline
+
+Linear-ticket-to-PR pipeline on AWS Bedrock AgentCore. See README.md for the architecture.
+This file is for working on the pipeline itself.
+
+## Commands
+
+- `cd runtime && npm run typecheck` — strict TS check; run after any runtime change.
+- `cd runtime && npm run dev -- HOT-nn` — run the whole pipeline locally against a Linear
+  issue (real side effects: Linear comments/labels, CodeBuild spend, PRs on the test repo).
+- `scripts/deploy-runtime.sh` — build/push image + update the AgentCore runtime. Required
+  after any `runtime/src` change; local runs do NOT update the deployed runtime.
+- `scripts/create-codebuild.sh` — push `codebuild/buildspec.yml` changes to the CodeBuild project.
+- `scripts/deploy-trigger.sh` — deploy the webhook Lambda.
+
+## Terminology
+
+The plan critic is the **adversary** (adversarial review). Do not introduce "antagonist".
+
+## Key facts and constants
+
+- All IDs, model profiles, labels, caps live in `runtime/src/config.ts` — change there, nowhere else.
+- Models are Bedrock **`au.` inference profile IDs**; bare `anthropic.*` model IDs are
+  rejected in ap-southeast-2. Only Opus 4.6 / Sonnet 4.6/4.5 / Haiku 4.5 are granted.
+- `prod/linear/apikey` is JSON-wrapped (`{"api-key": ...}`); `prod/github/pat` is a plain string.
+- The pipeline targets one repo (`hotstone/etrmfactory`), hardcoded in config.
+
+## Gotchas (each cost a debugging cycle — don't rediscover them)
+
+- **Strands TS Graph uses AND-dependency semantics**: a node waits for ALL incoming edges,
+  so cyclic feedback edges deadlock on first execution. Loops (plan⇄adversary,
+  review⇄revision) run imperatively inside `StepNode` functions with caps from config.
+- **Strands imports**: `Node`, `Graph`, and multiagent types come from
+  `@strands-agents/sdk/multiagent`, not the package root.
+- **CodeBuild buildspec**: commands run under **dash, not bash** (no `set -o pipefail`);
+  a plain YAML scalar containing `: ` (colon-space) becomes a mapping — quote the command.
+- **Claude Code in CodeBuild runs as root**: `--dangerously-skip-permissions` needs
+  `IS_SANDBOX=1` in the environment.
+- **Claude subprocesses**: pipe prompts via **stdin**, never argv (arg limits; failed
+  commands echo the whole prompt into error messages).
+- **Linear API JSON** can contain raw control characters inside strings; parse leniently.
+- **IAM propagation**: newly created roles fail validation in downstream create calls for
+  ~10–20s; the setup scripts are re-runnable — just re-run on that error.
+- The webhook Lambda fires only on the **transition** to `agent-ready` and skips issues
+  labelled `agent-in-progress`.
+
+## Conventions
+
+- Setup/deploy scripts are idempotent and re-runnable; keep them that way.
+- IAM policies are checked-in JSON under `infra/iam/` — never console-edited.
+- Every stage failure must land on the "comment back to Linear" path; no silent deaths.
+- The pipeline ends at a PR. Never add auto-merge.

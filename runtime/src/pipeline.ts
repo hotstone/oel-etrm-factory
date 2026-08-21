@@ -10,9 +10,9 @@ import {
   AssessmentSchema,
   CritiqueSchema,
   analyzerPrompt,
-  antagonistPrompt,
+  adversaryPrompt,
   makeAnalyzer,
-  makeAntagonist,
+  makeAdversary,
   type Assessment,
   type Critique,
 } from "./agents.js";
@@ -29,7 +29,7 @@ import { cloneWorkspace, removeWorkspace } from "./workspace.js";
  *
  * NOTE on loops: the TS Strands Graph uses AND-dependency semantics, so cyclic
  * feedback edges (critique→plan, review→implement) would deadlock the first
- * execution. The plan⇄antagonist and review⇄revision loops therefore run
+ * execution. The plan⇄adversary and review⇄revision loops therefore run
  * imperatively *inside* the plan and review nodes, with hard iteration caps.
  */
 interface RunContext {
@@ -78,7 +78,7 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
   const issue = await fetchIssue(issueIdentifier);
   const ctx: RunContext = { issue, critiques: [], revisionRuns: 0 };
   const analyzer = makeAnalyzer();
-  const antagonist = makeAntagonist();
+  const adversary = makeAdversary();
 
   const analyzeNode = new StepNode("analyze", async () => {
     const result = await analyzer.invoke(analyzerPrompt(ctx.issue));
@@ -106,7 +106,7 @@ ${criteria}`,
     ctx.planSessionId = first.sessionId;
 
     for (let i = 0; i < CONFIG.limits.critiqueIterations; i++) {
-      const critiqueResult = await antagonist.invoke(antagonistPrompt(assessment, ctx.plan));
+      const critiqueResult = await adversary.invoke(adversaryPrompt(assessment, ctx.plan));
       const critique = CritiqueSchema.parse(critiqueResult.structuredOutput);
       ctx.critiques.push(critique);
       const blocking = critique.objections.filter((o) => o.severity === "blocking");
