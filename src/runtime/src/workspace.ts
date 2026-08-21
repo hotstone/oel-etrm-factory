@@ -17,6 +17,13 @@ export async function cloneWorkspace(): Promise<string> {
     ["clone", "--depth", "1", `https://x-access-token:${pat}@github.com/${CONFIG.repo}.git`, dir],
     { timeout: 120_000 },
   );
+  // Scrub the credential from the remote so Claude Code sessions running in
+  // this workspace hold no push (or even fetch) credential.
+  await execFileAsync(
+    "git",
+    ["remote", "set-url", "origin", `https://github.com/${CONFIG.repo}.git`],
+    { cwd: dir },
+  );
   return dir;
 }
 

@@ -144,9 +144,11 @@ Revise the plan to address them. Output the full revised plan in the same format
         ctx.workspace!,
         `You are reviewing a pull request diff against ticket ${ctx.issue.identifier} and its plan.
 Read any repository context you need. Report every mismatch with the plan or acceptance
-criteria, and every correctness bug in the diff. Do not comment on style. Output markdown:
-a "## Findings" section with one bullet per finding prefixed [blocking] or [minor], or the
-exact text "No findings." if clean.
+criteria, and every correctness bug in the diff. Do not comment on style. Your entire
+output must be ONLY a "## Findings" section with one bullet per finding prefixed
+[blocking] or [minor], or the exact text "No findings." if clean. No preamble, no
+narration of your process, no verification walkthrough — the output is posted verbatim
+to the pull request.
 
 ## Acceptance criteria
 ${ctx.assessment!.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}

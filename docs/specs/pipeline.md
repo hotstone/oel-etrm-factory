@@ -39,4 +39,7 @@ https://claude.ai/code/artifact/78c140cf-f531-4adf-aac0-01af21d36353
 - Bounded loops with honest exits — on a cap hit, proceed and escalate to the human.
 - Verification is mechanical where possible — the buildspec's test/typecheck gates run
   regardless of what the model claims.
-- The pipeline ends at a PR behind branch protection. Never auto-merge.
+- The pipeline ends at a PR; only humans merge. Never auto-merge. Branch protection is
+  unavailable (private repo, GitHub Free) — the compensating control is credential-scrubbed
+  workspaces: Claude Code sessions hold no push credential; only deterministic harness
+  steps re-fetch the PAT, and they push only `agent/*` branches.

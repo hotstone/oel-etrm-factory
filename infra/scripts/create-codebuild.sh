@@ -43,9 +43,10 @@ cat > /tmp/codebuild-project.json <<EOF
   "source": { "type": "NO_SOURCE", "buildspec": ${BUILDSPEC_JSON} },
   "artifacts": { "type": "NO_ARTIFACTS" },
   "environment": {
-    "type": "LINUX_CONTAINER",
-    "image": "aws/codebuild/standard:7.0",
-    "computeType": "BUILD_GENERAL1_SMALL"
+    "type": "ARM_CONTAINER",
+    "image": "${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/etrm-factory-codebuild:latest",
+    "computeType": "BUILD_GENERAL1_SMALL",
+    "imagePullCredentialsType": "SERVICE_ROLE"
   },
   "serviceRole": "arn:aws:iam::${ACCOUNT}:role/${ROLE_NAME}",
   "timeoutInMinutes": 60,

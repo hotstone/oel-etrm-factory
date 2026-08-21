@@ -46,6 +46,11 @@ The plan critic is the **adversary** (adversarial review). Do not introduce "ant
 
 ## Conventions
 
+- **Workspaces are credential-less.** Claude Code sessions (runtime clone and CodeBuild)
+  must never hold the GitHub PAT: remotes are scrubbed after clone, the PAT lives in
+  unexported shell vars / prefix assignments, and only deterministic harness steps push.
+  Preserve this in any buildspec or workspace change.
+
 - Setup/deploy scripts are idempotent and re-runnable; keep them that way.
 - IAM policies are checked-in JSON under `infra/iam/` — never console-edited.
 - Every stage failure must land on the "comment back to Linear" path; no silent deaths.

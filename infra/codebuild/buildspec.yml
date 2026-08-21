@@ -33,17 +33,20 @@ env:
 
 phases:
   install:
-    runtime-versions:
-      nodejs: 20
     commands:
-      - npm install -g @anthropic-ai/claude-code
+      # node + claude-code + git + aws cli are baked into the custom image.
       - claude --version
 
   pre_build:
     commands:
-      - export GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id prod/github/pat --query SecretString --output text)
       - export BRANCH="agent/${ISSUE_ID}"
-      - git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git" "$WORKSPACE"
+      # Fetch the PAT into an UNEXPORTED shell variable: child processes (the
+      # Claude Code session in particular) must never see it in their env.
+      - GH_PAT=$(aws secretsmanager get-secret-value --secret-id prod/github/pat --query SecretString --output text) && git clone "https://x-access-token:${GH_PAT}@github.com/${REPO}.git" "$WORKSPACE"
+      # Scrub the credential from the workspace: the Claude Code session gets a
+      # remote it cannot push with. The harness re-fetches the PAT at the
+      # explicit push/PR steps below.
+      - cd "$WORKSPACE" && git remote set-url origin "https://github.com/${REPO}.git"
       # Reuse the agent branch if it already exists (revision runs build on the
       # previous attempt); otherwise create it fresh.
       - cd "$WORKSPACE" && (git checkout -B "$BRANCH" "origin/$BRANCH" 2>/dev/null || git checkout -b "$BRANCH")
@@ -118,9 +121,11 @@ phases:
       # 3. Commit and push.
       - cd "$WORKSPACE" && git config user.name "etrm-factory-agent" && git config user.email "agent@users.noreply.github.com"
       - 'cd "$WORKSPACE" && git add -A && git commit -m "${ISSUE_ID}: ${ISSUE_TITLE}" -m "Automated implementation. Plan and review trail on ${ISSUE_URL}"'
-      - cd "$WORKSPACE" && git push origin "$BRANCH"
+      # Re-fetch the PAT only for the push itself; the remote stays credential-less.
+      - cd "$WORKSPACE" && GH_PAT=$(aws secretsmanager get-secret-value --secret-id prod/github/pat --query SecretString --output text) && git push "https://x-access-token:${GH_PAT}@github.com/${REPO}.git" "$BRANCH"
       # 4. Open the PR via the GitHub REST API (script written in pre_build).
-      - python3 /tmp/create_pr.py
+      #    Prefix assignment scopes the token to this one process.
+      - GITHUB_TOKEN=$(aws secretsmanager get-secret-value --secret-id prod/github/pat --query SecretString --output text) python3 /tmp/create_pr.py
       - . /tmp/pr.env && export AGENT_RESULT="success" && echo "PR_URL=$PR_URL PR_NUMBER=$PR_NUMBER"
 
   post_build:

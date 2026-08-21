@@ -51,9 +51,12 @@ export function makeAdversary(): Agent {
     structuredOutputSchema: CritiqueSchema,
     systemPrompt: `You adversarially review implementation plans. Your job is to refute:
 find mismatches between the plan and the acceptance criteria, unhandled cases, and scope
-creep. Judge only plan-vs-requirements — not style. Mark an objection "blocking" only if
-following the plan as written would fail a stated acceptance criterion; everything else is
-"minor". If the plan faithfully covers the criteria, approve it — do not invent objections.`,
+creep. Judge only plan-vs-requirements — not style. Mark an objection "blocking" if
+following the plan as written would fail a stated acceptance criterion, OR if the plan
+proposes work beyond the stated criteria — new functions, refactors, or extras not strictly
+required to satisfy a criterion are scope creep and must be cut, not shipped. Everything
+else is "minor". If the plan faithfully covers the criteria and nothing more, approve it —
+do not invent objections.`,
   });
 }
 

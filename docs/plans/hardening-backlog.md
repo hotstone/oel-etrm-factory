@@ -17,15 +17,14 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
 
 ## Prompt quality (both observed in the HOT-53 run)
 
-- ★ Reviewer output discipline — working preamble leaked into the PR comment; demand the
-  `## Findings` section only.
-- ★ Adversary scope-creep check — the out-of-scope function in PR #4 was in the plan the
-  adversary approved; add "flag anything beyond the acceptance criteria".
+- ✅ Reviewer output discipline (2026-08-21) — findings-only output, posted verbatim.
+- ✅ Adversary scope-creep check (2026-08-21) — work beyond the criteria is a blocking objection.
 - Analyzer strictness calibration over a larger ticket sample.
 
 ## Speed / cost
 
-- ★ Custom CodeBuild image with node + Claude Code preinstalled (~1.5 min/build saved).
+- ✅ Custom CodeBuild image (2026-08-21) — `etrm-factory-codebuild` ECR image (node 22 +
+  Claude Code + AWS CLI, ARM), project switched to ARM_CONTAINER.
 - npm cache for the target repo's `npm ci` (CodeBuild local or S3 cache).
 - Tighter CodeBuild poll interval; reserved capacity only if volume justifies it.
 - Cost telemetry: per-run token + build-minute accounting (graph results carry per-node
@@ -33,9 +32,15 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
 
 ## Security / ops
 
-- ★ Rotate the GitHub PAT (passed through a chat transcript) and reissue with
-  contents + pull-requests only (current one has admin).
+- ✅ GitHub PAT rotated (2026-08-21) — scoped to the target repo, contents + PRs, no admin;
+  old token revoked and verified dead.
 - Kill switch documented (disable the Linear webhook) — see README.
-- ★ Branch protection on `main` in the target repo (mechanically enforces the human gate).
+- ✅ Branch protection: NOT available (private repo on GitHub Free). Compensating control
+  (2026-08-21): **credential-scrubbed workspaces** — Claude Code sessions (runtime and
+  CodeBuild) get a remote with no embedded credential and no PAT in their environment;
+  only deterministic harness steps re-fetch the PAT, and they push only `agent/*` branches.
+  Residual: the CodeBuild role itself can read the PAT secret (Claude has the role's AWS
+  creds for Bedrock), so a determined injected session could fetch it via the AWS CLI —
+  closing that needs a split-role design or paid branch protection.
 - Stale `agent/*` branch cleanup for failed/abandoned runs.
 - Richer observability: AgentCore OTEL tracing beyond CloudWatch logs.
