@@ -19,12 +19,12 @@ export interface Lesson {
  * Semantic search over the lessons namespace. Deterministic retrieval — no LLM.
  * Returns [] on any failure: memory must never block the pipeline.
  */
-export async function retrieveLessons(query: string): Promise<Lesson[]> {
+export async function retrieveLessons(namespace: string, query: string): Promise<Lesson[]> {
   try {
     const resp = await client.send(
       new RetrieveMemoryRecordsCommand({
         memoryId: CONFIG.memory.memoryId,
-        namespace: CONFIG.memory.namespace,
+        namespace,
         searchCriteria: {
           // The API caps searchQuery length; plans/diffs can be long.
           searchQuery: query.slice(0, 8_000),
@@ -52,6 +52,7 @@ export async function retrieveLessons(query: string): Promise<Lesson[]> {
 
 /** Write a new curated lesson. Returns the record id, or null on failure. */
 export async function writeLesson(
+  namespace: string,
   text: string,
   provenance: { issueId: string; files: string[] },
 ): Promise<string | null> {
@@ -63,7 +64,7 @@ export async function writeLesson(
         records: [
           {
             requestIdentifier,
-            namespaces: [CONFIG.memory.namespace],
+            namespaces: [namespace],
             memoryStrategyId: CONFIG.memory.strategyId,
             content: { text },
             timestamp: new Date(),

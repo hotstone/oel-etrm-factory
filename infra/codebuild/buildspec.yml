@@ -18,7 +18,14 @@ version: 0.2
 
 env:
   variables:
+    # REPO / REPO_WORKDIR / INSTALL_CMD / VERIFY_CMDS / PROTECTED_PATHS are
+    # supplied per run by the executor node (see src/runtime/src/targets.ts).
+    # Defaults keep manual e2e/run-executor.sh invocations working.
     REPO: "hotstone/oel-factory-testproject"
+    REPO_WORKDIR: "."
+    INSTALL_CMD: "npm ci"
+    VERIFY_CMDS: "npm run typecheck && npm test"
+    PROTECTED_PATHS: ""
     CLAUDE_CODE_USE_BEDROCK: "1"
     ANTHROPIC_MODEL: "au.anthropic.claude-opus-4-6-v1"
     ANTHROPIC_SMALL_FAST_MODEL: "au.anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -50,7 +57,7 @@ phases:
       # Reuse the agent branch if it already exists (revision runs build on the
       # previous attempt); otherwise create it fresh.
       - cd "$WORKSPACE" && (git checkout -B "$BRANCH" "origin/$BRANCH" 2>/dev/null || git checkout -b "$BRANCH")
-      - cd "$WORKSPACE" && npm ci
+      - cd "$WORKSPACE/$REPO_WORKDIR" && eval "$INSTALL_CMD"
       - aws s3 cp "$PLAN_S3_URI" /tmp/plan.md
       # Compose the prompt: fixed instructions + the approved plan.
       - |
@@ -123,8 +130,21 @@ phases:
       - cd "$WORKSPACE" && if [ -n "$(git status --porcelain)" ]; then export HAVE_CHANGES=1; else export HAVE_CHANGES=0; fi
       - '[ "$HAVE_CHANGES" = "1" ] || [ "${RUN_LABEL:-initial}" != "initial" ] || { echo "FAIL - Claude Code made no changes on initial run"; exit 1; }'
       # 3. Hard gates + commit + push, only when there is something to ship.
-      - '[ "$HAVE_CHANGES" = "0" ] || (cd "$WORKSPACE" && npm run typecheck)'
-      - '[ "$HAVE_CHANGES" = "0" ] || (cd "$WORKSPACE" && npm test)'
+      # Protected paths: an agent must not modify the controls that constrain it.
+      - |
+        if [ "$HAVE_CHANGES" = "1" ] && [ -n "$PROTECTED_PATHS" ]; then
+          cd "$WORKSPACE"
+          CHANGED=$(git status --porcelain | awk '{print $NF}')
+          for p in $PROTECTED_PATHS; do
+            for f in $CHANGED; do
+              case "$f" in
+                "$p"|"$p"*) echo "FAIL - change touches protected path: $f (matched $p)"; exit 1;;
+              esac
+            done
+          done
+          echo "protected-path check passed"
+        fi
+      - '[ "$HAVE_CHANGES" = "0" ] || (cd "$WORKSPACE/$REPO_WORKDIR" && eval "$VERIFY_CMDS")'
       - '[ "$HAVE_CHANGES" = "0" ] || (cd "$WORKSPACE" && git config user.name "etrm-factory-agent" && git config user.email "agent@users.noreply.github.com" && git add -A && git commit -m "${ISSUE_ID}: ${ISSUE_TITLE}" -m "Automated implementation. Plan and review trail on ${ISSUE_URL}")'
       # Re-fetch the PAT only for the push itself; the remote stays credential-less.
       - '[ "$HAVE_CHANGES" = "0" ] || (cd "$WORKSPACE" && GH_PAT=$(aws secretsmanager get-secret-value --secret-id prod/github/pat --query SecretString --output text) && git push "https://x-access-token:${GH_PAT}@github.com/${REPO}.git" "$BRANCH")'

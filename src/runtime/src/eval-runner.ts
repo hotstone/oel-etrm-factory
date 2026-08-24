@@ -12,6 +12,7 @@ import { closePrAndBranch, fetchPrFiles } from "./github.js";
 import { recoverOutcomeFromLinear } from "./eval-recovery.js";
 import { archiveIssue, commentOnIssue, createIssue } from "./linear.js";
 import type { PipelineOutcome } from "./pipeline.js";
+import { DEFAULT_TARGET } from "./targets.js";
 
 interface EvalCase {
   id: string;
@@ -93,7 +94,7 @@ async function runCase(c: EvalCase): Promise<CaseResult> {
     if (!pass) notes.push(`expected pr, got ${outcome.status}: ${outcome.detail}`);
     if (pass && c.allowedFiles) {
       const prNumber = outcome.prUrl!.split("/").pop()!;
-      const files = await fetchPrFiles(prNumber);
+      const files = await fetchPrFiles(DEFAULT_TARGET.slug, prNumber);
       const outside = files.filter((f) => !c.allowedFiles!.includes(f));
       if (outside.length) {
         pass = false;
@@ -106,7 +107,7 @@ async function runCase(c: EvalCase): Promise<CaseResult> {
   // Cleanup: close the PR + branch, note and archive the eval issue.
   if (outcome.prUrl) {
     const prNumber = outcome.prUrl.split("/").pop()!;
-    await closePrAndBranch(prNumber, `agent/${issue.identifier}`).catch((e) => notes.push(`cleanup: ${e}`));
+    await closePrAndBranch(DEFAULT_TARGET.slug, prNumber, `agent/${issue.identifier}`).catch((e) => notes.push(`cleanup: ${e}`));
   }
   await commentOnIssue(issue.id, `Eval case \`${c.id}\`: ${pass ? "PASS" : "FAIL"} (${outcome.status})`).catch(() => {});
   await archiveIssue(issue.id).catch((e) => notes.push(`archive: ${e}`));

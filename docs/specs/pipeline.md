@@ -17,6 +17,23 @@ AND-dependency semantics deadlock on cyclic edges. Caps/constants: `src/runtime/
 | Reviewer | Claude Code subprocess, fresh context | Opus 4.6 | Blind review of the PR diff (findings format is guarded: unparseable output retries once, then fails loudly), then a phase-2 lesson check; blocking findings → one revision build (cap: 1); unresolved findings or an implementer "no-changes" disagreement are posted to the PR for the human |
 | Curator | Strands `Agent` in the runtime | Haiku 4.5 | Terminal node: persists findings, distills lessons — see `docs/specs/learning-loop.md` |
 
+## Target repositories (multi-repo routing)
+
+Targets are declared in `src/runtime/src/targets.ts`: GitHub slug, workdir (where
+`package.json` lives), install/verify commands, protected paths, and a lessons-memory
+namespace. Routing is by Linear label — `target:pipeline` selects the pipeline's own repo;
+anything unlabelled goes to the default test project. The executor passes the target's
+workdir/commands/protected-paths to CodeBuild per run, so adding a repo is a single edit
+to that file (plus its label id).
+
+**Dogfooding.** The pipeline is a valid target for itself. Self-targeted work carries
+**protected paths** — `.github/workflows/`, `infra/iam/`, the buildspec, `untrusted.ts`,
+`claude.ts`, `targets.ts`, the eval cases, and `security.md`. These are the controls that
+constrain the agent, so a diff touching any of them fails the build mechanically and is a
+blocking finding for the reviewer. Rationale: an agent that can widen its own privileges
+(especially by editing a workflow that assumes an admin-capable AWS role) has no
+meaningful sandbox.
+
 **Target-repo conventions are the target repo's concern.** The delivery contract is that
 the implementer complies with the target repo's contained docs (`CLAUDE.md`, contributing
 guides — auto-loaded by Claude Code): test commands, CI expectations, conventions. The

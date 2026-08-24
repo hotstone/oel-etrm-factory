@@ -26,6 +26,7 @@ import { commentOnPr, fetchPrDiff, fetchPrFiles } from "./github.js";
 import { lessonsBlock, reinforceLesson, retrieveLessons, writeLesson } from "./memory.js";
 import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
 import { emitRunMetrics, type StageStat } from "./metrics.js";
+import { protectedViolations, resolveTarget } from "./targets.js";
 import { withSpan } from "./telemetry.js";
 import { UNTRUSTED_NOTICE, wrapUntrusted } from "./untrusted.js";
 import { cloneWorkspace, removeWorkspace } from "./workspace.js";
@@ -113,6 +114,8 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
   const runStart = Date.now();
   let stages: StageStat[] = [];
   const issue = await fetchIssue(issueIdentifier);
+  const target = resolveTarget(issue.labelIds);
+  console.log(`[target] ${issue.identifier} → ${target.slug} (workdir ${target.workdir})`);
   const ctx: RunContext = { tokensUsed: 0, issue, critiques: [], reviewPasses: [], revisionRuns: 0 };
   const spend = (input: number, output: number) => {
     ctx.tokensUsed += input + output;
@@ -141,11 +144,12 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
   const planNode = new StepNode("plan", async () => {
     let inTok = 0;
     let outTok = 0;
-    ctx.workspace = await cloneWorkspace();
+    ctx.workspace = await cloneWorkspace(target.slug);
     const assessment = ctx.assessment!;
     const criteria = assessment.acceptanceCriteria.map((c) => `- ${c}`).join("\n");
 
     const planLessons = await retrieveLessons(
+      target.memoryNamespace,
       `${ctx.issue.title}\n${assessment.intent}\n${ctx.issue.description}\n${assessment.affectedAreas.join(" ")}`,
     );
     const deps = assessment.dependencies.length
@@ -206,13 +210,14 @@ Revise the plan to address them. Output the full revised plan in the same format
   });
 
   const implementNode = new StepNode("implement", async () => {
-    const implLessons = await retrieveLessons(ctx.plan!);
+    const implLessons = await retrieveLessons(target.memoryNamespace, ctx.plan!);
     ctx.executorRun = await runExecutorBuild({
       issueId: ctx.issue.identifier,
       issueTitle: ctx.issue.title,
       issueUrl: ctx.issue.url,
       plan: `${ctx.plan!}${lessonsBlock(implLessons)}`,
       runLabel: "initial",
+      target,
     });
     return { summary: ctx.executorRun.prUrl };
   });
@@ -221,7 +226,7 @@ Revise the plan to address them. Output the full revised plan in the same format
     let inTok = 0;
     let outTok = 0;
     for (;;) {
-      const diff = await fetchPrDiff(ctx.executorRun!.prNumber);
+      const diff = await fetchPrDiff(target.slug, ctx.executorRun!.prNumber);
       const riskNote =
         ctx.assessment!.risk === "high"
           ? "This ticket is HIGH RISK (correctness/money/security impact) — review with extra rigour.\n"
@@ -231,7 +236,11 @@ Revise the plan to address them. Output the full revised plan in the same format
         `You are reviewing a pull request diff against ticket ${ctx.issue.identifier} and its plan.
 ${riskNote}Ticket intent: ${ctx.assessment!.intent}
 Read any repository context you need. Report every mismatch with the plan or acceptance
-criteria, and every correctness bug in the diff. A change that weakens security,
+criteria, and every correctness bug in the diff.${
+          target.protectedPaths.length
+            ? ` This repository has protected paths that agent changes must never touch (${target.protectedPaths.join(", ")}) — a diff touching any of them is [blocking].`
+            : ""
+        } A change that weakens security,
 validation, or secrecy is [blocking] even if the plan or acceptance criteria call for
 it — flag it for human judgment rather than treating the requirement as licence.
 Do not comment on style. Your entire
@@ -280,7 +289,7 @@ or "- [minor]", or the exact text "No findings." if the diff is clean.`,
       // context. Only now check past lessons against the diff, in the same
       // session, tagging anything they surface for the curator's echo guard.
       let reviewText = review.text;
-      const reviewLessons = await retrieveLessons(diff);
+      const reviewLessons = await retrieveLessons(target.memoryNamespace, diff);
       if (reviewLessons.length > 0) {
         const phase2 = await runClaudePlanning(
           ctx.workspace!,
@@ -299,7 +308,7 @@ ${lessonsBlock(reviewLessons)}`,
       }
 
       const passFindings = parseFindings(reviewText);
-      const prFiles = await fetchPrFiles(ctx.executorRun!.prNumber).catch(() => []);
+      const prFiles = await fetchPrFiles(target.slug, ctx.executorRun!.prNumber).catch(() => []);
       ctx.reviewPasses.push({
         pass: ctx.revisionRuns + 1,
         prNumber: ctx.executorRun!.prNumber,
@@ -315,6 +324,7 @@ ${lessonsBlock(reviewLessons)}`,
             resolution,
             files: p.files,
             findings: p.findings,
+            repo: target.slug,
           });
         }
       };
@@ -330,6 +340,7 @@ ${lessonsBlock(reviewLessons)}`,
       if (ctx.revisionRuns >= CONFIG.limits.reviewIterations) {
         // Cap hit: surface the findings on the PR for the human reviewer.
         await commentOnPr(
+          target.slug,
           ctx.executorRun!.prNumber,
           `**Agent review — unresolved findings** (revision cap reached; human attention needed):\n\n${reviewText}`,
         );
@@ -356,11 +367,13 @@ Original plan for reference:
 
 ${ctx.plan!}`,
         runLabel: `revision-${ctx.revisionRuns}`,
+        target,
       });
       if (ctx.executorRun.agentResult === "no-changes") {
         // Implementer investigated and disagrees with the review — a judgment
         // call for the human, not a failure.
         await commentOnPr(
+          target.slug,
           ctx.executorRun.prNumber,
           `**Agent disagreement — human judgment needed.** The reviewer raised blocking findings, but the revision run concluded no change is warranted:\n\n${reviewText}`,
         );
@@ -387,7 +400,7 @@ ${ctx.plan!}`,
       const organic = all.filter((f) => !f.lessonId);
       if (organic.length === 0) return { summary: `reinforced ${tagged.length} lesson(s); no organic findings` };
 
-      const existing = await retrieveLessons(organic.map((f) => f.text).join("\n"));
+      const existing = await retrieveLessons(target.memoryNamespace, organic.map((f) => f.text).join("\n"));
       const curator = makeCurator();
       const result = await curator.invoke(curatorPrompt(organic, existing));
       const cu = result.metrics?.accumulatedUsage;
@@ -404,7 +417,7 @@ ${ctx.plan!}`,
           const text = d.repoChangeSuggestion
             ? `${d.lessonText} (Proposed repo change: ${d.repoChangeSuggestion})`
             : d.lessonText;
-          const id = await writeLesson(text, {
+          const id = await writeLesson(target.memoryNamespace, text, {
             issueId: ctx.issue.identifier,
             files: ctx.reviewPasses.flatMap((p) => p.files),
           });

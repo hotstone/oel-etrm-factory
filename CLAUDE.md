@@ -32,6 +32,10 @@ The plan critic is the **adversary** (adversarial review). Do not introduce "ant
 ## Key facts and constants
 
 - All IDs, model profiles, labels, caps live in `src/runtime/src/config.ts` — change there, nowhere else.
+- **Target repos live in `src/runtime/src/targets.ts`** (slug, workdir, verify commands,
+  protected paths, memory namespace); routing is by Linear label (`target:pipeline` →
+  this repo). The pipeline can work on itself; protected paths are enforced in the
+  buildspec and by the reviewer — never weaken them from inside an agent-authored change.
 - Models are Bedrock **`au.` inference profile IDs**; bare `anthropic.*` model IDs are
   rejected in ap-southeast-2. Only Opus 4.6 / Sonnet 4.6/4.5 / Haiku 4.5 are granted.
 - `prod/linear/apikey` is JSON-wrapped (`{"api-key": ...}`); `prod/github/pat` is a plain string.

@@ -7,6 +7,7 @@ export interface LinearIssue {
   title: string;
   description: string;
   url: string;
+  labelIds: string[];
   comments: { body: string; author: string }[];
 }
 
@@ -51,12 +52,14 @@ export async function fetchIssue(idOrIdentifier: string): Promise<LinearIssue> {
       title: string;
       description: string | null;
       url: string;
+      labels: { nodes: { id: string }[] };
       comments: { nodes: { body: string; user: { name: string } | null }[] };
     };
   }>(
     `query($id: String!) {
       issue(id: $id) {
         id identifier title description url
+        labels { nodes { id } }
         comments { nodes { body user { name } } }
       }
     }`,
@@ -69,6 +72,7 @@ export async function fetchIssue(idOrIdentifier: string): Promise<LinearIssue> {
     title: issue.title,
     description: issue.description ?? "",
     url: issue.url,
+    labelIds: issue.labels.nodes.map((l) => l.id),
     comments: issue.comments.nodes.map((c) => ({ body: c.body, author: c.user?.name ?? "unknown" })),
   };
 }

@@ -50,6 +50,7 @@ export async function persistFindings(input: {
   resolution: ReviewResolution;
   files: string[];
   findings: Finding[];
+  repo: string;
 }): Promise<void> {
   const reviewedAt = new Date().toISOString();
   await Promise.all(
@@ -68,7 +69,7 @@ export async function persistFindings(input: {
               severity: { S: f.severity },
               text: { S: f.text },
               files: { SS: input.files.length ? input.files : ["(unknown)"] },
-              repo: { S: CONFIG.repo },
+              repo: { S: input.repo },
               ...(f.lessonId ? { lessonId: { S: f.lessonId } } : {}),
             },
           }),

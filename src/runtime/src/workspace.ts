@@ -9,19 +9,19 @@ import { githubPat } from "./secrets.js";
 const execFileAsync = promisify(execFile);
 
 /** Shallow-clone the target repo into a temp dir; returns its path. */
-export async function cloneWorkspace(): Promise<string> {
+export async function cloneWorkspace(slug: string): Promise<string> {
   const pat = await githubPat();
   const dir = await mkdtemp(join(tmpdir(), "etrm-workspace-"));
   await execFileAsync(
     "git",
-    ["clone", "--depth", "1", `https://x-access-token:${pat}@github.com/${CONFIG.repo}.git`, dir],
+    ["clone", "--depth", "1", `https://x-access-token:${pat}@github.com/${slug}.git`, dir],
     { timeout: 120_000 },
   );
   // Scrub the credential from the remote so Claude Code sessions running in
   // this workspace hold no push (or even fetch) credential.
   await execFileAsync(
     "git",
-    ["remote", "set-url", "origin", `https://github.com/${CONFIG.repo}.git`],
+    ["remote", "set-url", "origin", `https://github.com/${slug}.git`],
     { cwd: dir },
   );
   return dir;

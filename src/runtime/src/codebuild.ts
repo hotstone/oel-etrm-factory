@@ -1,6 +1,7 @@
 import { BatchGetBuildsCommand, CodeBuildClient, StartBuildCommand } from "@aws-sdk/client-codebuild";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { CONFIG } from "./config.js";
+import type { TargetRepo } from "./targets.js";
 
 const codebuild = new CodeBuildClient({ region: CONFIG.region });
 const s3 = new S3Client({ region: CONFIG.region });
@@ -26,6 +27,7 @@ export async function runExecutorBuild(input: {
   issueUrl: string;
   plan: string;
   runLabel: string; // e.g. "initial", "revision-1" — distinguishes S3 keys
+  target: TargetRepo;
 }): Promise<ExecutorRun> {
   const key = `plans/${input.issueId}/${Date.now()}-${input.runLabel}/plan.md`;
   await s3.send(
@@ -41,6 +43,11 @@ export async function runExecutorBuild(input: {
         { name: "ISSUE_URL", value: input.issueUrl, type: "PLAINTEXT" },
         { name: "PLAN_S3_URI", value: `s3://${CONFIG.artifactsBucket}/${key}`, type: "PLAINTEXT" },
         { name: "RUN_LABEL", value: input.runLabel, type: "PLAINTEXT" },
+        { name: "REPO", value: input.target.slug, type: "PLAINTEXT" },
+        { name: "REPO_WORKDIR", value: input.target.workdir, type: "PLAINTEXT" },
+        { name: "INSTALL_CMD", value: input.target.install, type: "PLAINTEXT" },
+        { name: "VERIFY_CMDS", value: input.target.verify.join(" && "), type: "PLAINTEXT" },
+        { name: "PROTECTED_PATHS", value: input.target.protectedPaths.join(" "), type: "PLAINTEXT" },
       ],
     }),
   );

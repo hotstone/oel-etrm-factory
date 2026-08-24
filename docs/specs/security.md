@@ -81,6 +81,23 @@ per-stage summary logs, append-only findings archive with provenance, plans + Cl
 transcripts in S3. Gap: no log retention configured yet (client code fragments would
 persist indefinitely).
 
+## Self-modification (dogfooding)
+
+The pipeline can deliver tickets against its own repository. Two controls bound that:
+
+- **Protected paths** (`targets.ts`): agent diffs may not touch workflow definitions, IAM
+  policies, the buildspec, injection containment, agent credential handling, the target
+  definitions themselves, eval cases, or this document. Enforced mechanically in the
+  buildspec (build fails before any push) and as a blocking reviewer rule.
+- **Deploys stay manual.** A merged self-change does not reach production until a human
+  runs the deploy workflow, so a bad self-edit cannot self-propagate.
+
+Residual: `GithubDeployerRole` (used by the Actions workflows) carries
+`AdministratorAccess`, so anything able to add or edit a workflow in this repo could reach
+full AWS admin — which is exactly why `.github/workflows/` is protected. Scoping that role
+down remains open (a least-privilege role, `etrm-factory-github-actions`, already exists
+in the account, built for this purpose).
+
 ## Tenancy
 
 Single-tenant by construction: one repo, one Linear team, one memory namespace, one PAT.
