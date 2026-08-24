@@ -40,8 +40,12 @@ of these deliberately.
   (~$40/mo) and a security group. This creates the egress chokepoint with a stable IP.
 - [ ] Optional hardening on top: AWS Network Firewall domain allowlist (GitHub, Linear,
   AWS endpoints) for actual exfiltration control (~$300+/mo) — decide by client risk.
-- [ ] Webhook Lambda: set reserved concurrency (spam/cost cap on the public URL);
-  consider API Gateway + WAF if abuse is ever observed.
+- [ ] Webhook Lambda exposure: `etrm-factory-trigger` has a **public function URL**
+  (auth NONE) by necessity — Linear's SaaS must POST webhook deliveries to it over the
+  internet. Defenses today: HMAC signature verification (secret shared with Linear),
+  label-transition filter, DynamoDB idempotency claim. Residual risk is unauthenticated
+  spam (invocation cost + log noise), not forgery. Before client use: set reserved
+  concurrency (spam/cost cap); consider API Gateway + WAF if abuse is ever observed.
 
 ## Bedrock spend limiting (process, in build order)
 

@@ -51,6 +51,12 @@ The plan critic is the **adversary** (adversarial review). Do not introduce "ant
   ~10–20s; the setup scripts are re-runnable — just re-run on that error.
 - The webhook Lambda fires only on the **transition** to `agent-ready` and skips issues
   labelled `agent-in-progress`.
+- **One run = one fresh `runtimeSessionId` — this is the isolation boundary.** Each
+  unique session ID gets its own AgentCore microVM (own filesystem, memory), destroyed
+  and sanitized at session end. Never reuse session IDs across issues or clients: Claude
+  Code state in `$HOME/.claude` (plans, transcripts) would bleed between them. Never
+  enable AgentCore session storage for this runtime — same hole, different door. If
+  warm-start latency ever matters, solve it another way.
 
 ## Lessons memory (Phase 2)
 
