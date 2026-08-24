@@ -34,7 +34,10 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
   runner polls Linear (the durable channel) to recover the real outcome instead of
   scoring an infra failure; verified live against issues with known terminal states. Known gap probed by the advisory
   `unknown-area` case: the analyzer cannot see the repo, so tickets referencing
-  nonexistent components may pass the gate.
+  nonexistent components may pass the gate. ✅ Inverse gap fixed 2026-08-25 (found by the
+  first dogfooding run): the analyzer was blocking on details discoverable in the code
+  (type shapes, signatures) and on a question the ticket already answered. It now blocks
+  only on ambiguous intent/scope/criteria; the `code-discoverable` eval case guards this.
 
 ## Speed / cost
 
