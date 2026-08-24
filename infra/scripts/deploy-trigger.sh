@@ -16,7 +16,7 @@ echo "== package =="
 cd "${REPO_ROOT}/src/trigger"
 npm install --no-fund --no-audit --omit=dev >/dev/null
 rm -f /tmp/trigger.zip
-zip -qr /tmp/trigger.zip index.mjs node_modules package.json
+zip -qr /tmp/trigger.zip index.mjs filter.mjs node_modules package.json
 
 echo "== Idempotency table =="
 if ! aws dynamodb describe-table --table-name etrm-factory-runs --region "$REGION" >/dev/null 2>&1; then

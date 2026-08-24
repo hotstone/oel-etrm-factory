@@ -12,8 +12,9 @@ RUN npm ci --no-fund --no-audit
 COPY tsconfig.json vitest.config.ts* ./
 COPY src ./src
 COPY test ./test
-# Unit tests gate the image: a failing test fails the build, which fails deploys.
-RUN npm run build && npm test && npm prune --omit=dev
+# Unit tests gate the image (test:image skips the trigger-filter test — its
+# ../../trigger import is outside this build context; npm test runs it locally).
+RUN npm run build && npm run test:image && npm prune --omit=dev
 
 # claude CLI must be on PATH for the planner/reviewer subprocesses.
 ENV PATH="/app/node_modules/.bin:${PATH}"

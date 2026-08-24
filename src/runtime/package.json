@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "dev": "tsx src/local.ts",
     "eval": "tsx src/eval-runner.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:image": "vitest run --exclude \"**/trigger-filter*\""
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^2.0.0",
