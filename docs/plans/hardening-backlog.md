@@ -19,6 +19,13 @@ Grouped by what each item protects. Items marked ★ are the recommended first s
 
 - ✅ Reviewer output discipline (2026-08-21) — findings-only output, posted verbatim.
 - ✅ Adversary scope-creep check (2026-08-21) — work beyond the criteria is a blocking objection.
+- **Review agent output structures** (requested 2026-08-23): richer, deliberately
+  designed schemas for each agent's structured output. In particular the analyzer's
+  assessment should evolve from {suitable, confidence, missingInfo, acceptanceCriteria,
+  affectedAreas} toward a fuller ticket breakdown — Intent, Requirements, Area, Risk,
+  Complexity, Acceptance Criteria, Dependencies, Outstanding Questions — which also
+  gives the planner/adversary/curator (and memory retrieval queries) richer signal.
+  Do alongside analyzer calibration; schema changes need an eval sweep.
 - Analyzer strictness calibration — measurable now. ✅ Baseline sweep (2026-08-21):
   6/6 effective (5 scored + scope-bait amended after a local network drop mid-invoke;
   verified server-side: clean PR within allowed files). All three gate cases blocked
