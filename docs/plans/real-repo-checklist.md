@@ -32,6 +32,29 @@ of these deliberately.
 - [ ] Ticket authors briefed: acceptance-criteria style gets PRs; vague tickets get
   questions. The eval cases in `e2e/evals/cases.json` show the calibration.
 
+## Network (decided 2026-08-24: deferred for the test system, REQUIRED before client code)
+
+- [ ] Move the AgentCore runtime off `networkMode: PUBLIC` into the default VPC's three
+  private subnets (`172.31.128/144/160.0/20` — currently isolated: no NAT, no endpoints),
+  and give CodeBuild the same VPC config. Requires: NAT gateway + private route table
+  (~$40/mo) and a security group. This creates the egress chokepoint with a stable IP.
+- [ ] Optional hardening on top: AWS Network Firewall domain allowlist (GitHub, Linear,
+  AWS endpoints) for actual exfiltration control (~$300+/mo) — decide by client risk.
+- [ ] Webhook Lambda: set reserved concurrency (spam/cost cap on the public URL);
+  consider API Gateway + WAF if abuse is ever observed.
+
+## Bedrock spend limiting (process, in build order)
+
+- [ ] Application inference profiles (tagged) wrapping the `au.` profiles → per-workload
+  cost allocation + per-profile token metrics.
+- [ ] Fast circuit-breaker: CloudWatch alarm on our `TokensUsed` EMF metric (tokens/hour)
+  → SNS → small Lambda that disables the Linear webhook. Minutes-level containment.
+- [ ] AWS Budgets (Bedrock/tag-filtered) with a budget action attaching a deny
+  `bedrock:InvokeModel*` policy to `etrm-agent-bedrock-only` + runtime role at threshold.
+  Real IAM enforcement, ~8–24h billing lag — caps the month, not the hour.
+- [ ] Optional: service-quota reductions (TPM/RPM) via support ticket to bound burn rate.
+- Already in place: per-run `maxRunTokens`, build timeouts, failure alarm → SNS.
+
 ## Ops
 
 - [ ] SNS: subscribe a real destination to `etrm-factory-alerts`
