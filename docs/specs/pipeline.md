@@ -4,47 +4,80 @@ Linear-ticket-to-PR delivery pipeline. Trigger to PR, fully automated; merge is 
 
 ## Stages
 
-| Stage | Where it runs | Model | Role |
+Strands TS `Graph`: `analyze → plan → implement → review → curate`, conditional edges
+gating progression. Feedback loops run imperatively *inside* nodes because the TS Graph's
+AND-dependency semantics deadlock on cyclic edges. Caps/constants: `src/runtime/src/config.ts`.
+
+| Stage | Where | Model | Role |
 |---|---|---|---|
-| Analyzer | AgentCore runtime, Strands `Agent` | Haiku 4.5 | Gate: is the ticket well-specified? Emits structured `{suitable, missingInfo, acceptanceCriteria, affectedAreas}` |
-| Planner | Claude Code subprocess in the runtime container (plan mode, read-only) | Opus 4.6 | Explores a shallow clone, produces an implementation plan |
-| Adversary | Strands `Agent` | Haiku 4.5 | Refutes the plan against the acceptance criteria; blocking objections send the plan back via `claude --resume` (cap: 2 rounds) |
-| Executor | CodeBuild job `claude-code-executor` | Opus 4.6 | Claude Code implements the plan; hard gates (changes exist, typecheck, tests) before branch push + PR |
-| Reviewer | Claude Code subprocess in the runtime container | Opus 4.6 | Fresh-context review of the PR diff; blocking findings trigger one revision build; unresolved findings are posted to the PR |
-
-## Orchestration
-
-Strands TS `Graph`: `analyze → plan → implement → review`, conditional edges gate
-progression (`suitable`, plan-exists). Feedback loops run imperatively inside the plan and
-review nodes because the TS Graph resolves dependencies with AND semantics — cyclic edges
-deadlock on first execution. All caps and constants: `src/runtime/src/config.ts`.
+| Analyzer | Strands `Agent` in the runtime | Haiku 4.5 | Gate: is the ticket well-specified? Emits `{suitable, confidence, missingInfo, acceptanceCriteria, affectedAreas}` |
+| Planner | Claude Code subprocess, plan mode (read-only), over a shallow clone | Opus 4.6 | Explores the repo, produces the plan; retrieved lessons injected |
+| Adversary | Strands `Agent` in the runtime | Haiku 4.5 | Refutes plan vs criteria — gaps AND scope creep are blocking; objections revise the plan via `claude --resume` (cap: 2 rounds) |
+| Implementer | Claude Code in CodeBuild `claude-code-executor` | Opus 4.6 | Implements the plan (lessons appended); hard gates (typecheck, tests) before branch push + PR |
+| Reviewer | Claude Code subprocess, fresh context | Opus 4.6 | Blind review of the PR diff, then a phase-2 lesson check; blocking findings → one revision build (cap: 1); unresolved findings or an implementer "no-changes" disagreement are posted to the PR for the human |
+| Curator | Strands `Agent` in the runtime | Haiku 4.5 | Terminal node: persists findings, distills lessons — see `docs/specs/learning-loop.md` |
 
 ## Trigger and feedback
 
-Linear webhook (team-scoped) → Lambda `etrm-factory-trigger`: HMAC verify, fire only on the
-*transition* to the `agent-ready` label, skip if `agent-in-progress` → `InvokeAgentRuntime`
-(async-accept: the runtime registers an AgentCore async task and returns immediately).
-Every exit path writes back to Linear: questions + `agent-blocked`, PR link, or a truncated
-failure message.
+Linear webhook (team-scoped) → Lambda `etrm-factory-trigger`: HMAC verify → fire only on
+the *transition* to the `agent-ready` label, skip if `agent-in-progress` → DynamoDB
+conditional claim (`etrm-factory-runs`, 2h TTL — exactly one delivery per issue wins) →
+`InvokeAgentRuntime` (async-accept: the runtime registers an AgentCore async task and
+returns immediately). Every exit path writes back to Linear: questions + `agent-blocked`,
+PR link, or a truncated failure message — no silent deaths.
+
+## Security model
+
+- **Split roles**: Claude Code sessions (runtime and CodeBuild) run under the assumed
+  `etrm-agent-bedrock-only` role — Bedrock invoke and nothing else — with the container
+  role's credential source stripped from their env. The executor role has no Bedrock
+  permissions; the runtime role keeps them for in-process Strands agents.
+- **Credential-less workspaces**: git remotes are scrubbed after clone; the GitHub PAT
+  lives only in unexported shell vars / prefix assignments; deterministic harness steps
+  push, and only to `agent/*` branches.
+- **Human gate**: pipeline ends at a PR; never auto-merge. (Branch protection unavailable
+  on GitHub Free private repos — the controls above are the compensating mechanism for
+  the agent side; the human side is procedural.)
+- Secrets in Secrets Manager: `prod/linear/apikey` (JSON, key `api-key`),
+  `prod/github/pat` (plain), `prod/linear/webhook-secret`.
+
+## Operational controls
+
+- **Budget**: per-run LLM token cap (`maxRunTokens`) aborts before plan revisions and
+  revision builds; per-stage/graph timeouts in config.
+- **Observability**: OTEL traces (ADOT preload → `aws/spans`, GenAI observability;
+  `issue.id` on every graph trace); EMF metrics namespace `EtrmFactory/Pipeline` (runs,
+  durations, tokens by stage); dashboard `etrm-factory-pipeline`; alarm
+  `etrm-factory-pipeline-failed` → SNS `etrm-factory-alerts`.
+- **Evals before deploy**: `e2e/run-evals.sh` runs the graded ticket set against the
+  deployed runtime, scores deterministically, commits scorecards to `e2e/evals/results/`.
+
+## AWS resource inventory (ap-southeast-2)
+
+| Resource | Name |
+|---|---|
+| AgentCore runtime | `etrm_factory_pipeline-WNJDR0HSAQ` |
+| AgentCore memory store | `etrm_factory_lessons-Zv1mYYATxG` |
+| Webhook Lambda (+ function URL) | `etrm-factory-trigger` |
+| CodeBuild project | `claude-code-executor` (custom ARM image `etrm-factory-codebuild`) |
+| ECR repos | `etrm-factory-runtime`, `etrm-factory-codebuild` |
+| S3 | `etrmfactory-agent-artifacts-007460876082` (plans, Claude transcripts) |
+| DynamoDB | `etrm-factory-runs` (idempotency), `etrm-factory-findings` (findings archive) |
+| SNS / CloudWatch | `etrm-factory-alerts`; dashboard + alarm as above |
+| IAM roles | `etrm-factory-runtime-role`, `claude-code-executor-role`, `etrm-factory-trigger-role`, `etrm-agent-bedrock-only` |
+
+Provisioning is all in `infra/scripts/` (re-runnable); policies in `infra/iam/`.
 
 ## Diagram
 
-Published artifact (includes the phase-2 memory loop):
-https://claude.ai/code/artifact/78c140cf-f531-4adf-aac0-01af21d36353
-
-## Learning loop
-
-Reviewer findings are archived and distilled into long-term lessons that brief future
-runs (planner, implementer, reviewer). Full specification: `docs/specs/learning-loop.md`.
+Published artifact: https://claude.ai/code/artifact/78c140cf-f531-4adf-aac0-01af21d36353
 
 ## Design principles
 
-- Deterministic orchestration — no LLM decides routing; conditions are plain functions.
-- Independent contexts per stage — the reviewer never shares a session with the executor.
-- Bounded loops with honest exits — on a cap hit, proceed and escalate to the human.
-- Verification is mechanical where possible — the buildspec's test/typecheck gates run
-  regardless of what the model claims.
-- The pipeline ends at a PR; only humans merge. Never auto-merge. Branch protection is
-  unavailable (private repo, GitHub Free) — the compensating control is credential-scrubbed
-  workspaces: Claude Code sessions hold no push credential; only deterministic harness
-  steps re-fetch the PAT, and they push only `agent/*` branches.
+- Deterministic orchestration — no LLM decides routing; edge conditions are plain functions.
+- Independent contexts per stage — the reviewer never shares a session with the implementer;
+  the only cross-run channel is curated lessons.
+- Bounded loops with honest exits — on a cap hit or disagreement, proceed and escalate to
+  the human rather than looping or lying.
+- Verification is mechanical where possible — buildspec gates run regardless of what the
+  model claims.

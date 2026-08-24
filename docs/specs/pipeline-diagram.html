@@ -1,0 +1,286 @@
+<title>Ticket-to-PR Pipeline</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --ink: #21252c;
+    --muted: #5d6572;
+    --line: #c6ccd6;
+    --lane: rgba(33, 37, 44, 0.04);
+    --lane-line: rgba(33, 37, 44, 0.10);
+    --mem: #6d28d9;
+    --gate: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161b;
+      --surface: #1e2128;
+      --ink: #e6e8ee;
+      --muted: #9aa3b1;
+      --line: #3c424d;
+      --lane: rgba(230, 232, 238, 0.045);
+      --lane-line: rgba(230, 232, 238, 0.12);
+      --mem: #a78bfa;
+      --gate: #e8ab4a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161b;
+    --surface: #1e2128;
+    --ink: #e6e8ee;
+    --muted: #9aa3b1;
+    --line: #3c424d;
+    --lane: rgba(230, 232, 238, 0.045);
+    --lane-line: rgba(230, 232, 238, 0.12);
+    --mem: #a78bfa;
+    --gate: #e8ab4a;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    padding: 40px 24px 64px;
+    line-height: 1.55;
+  }
+  main { max-width: 1120px; margin: 0 auto; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-size: 27px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+  .intro {
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 62ch;
+    margin: 0 0 30px;
+  }
+
+  figure { margin: 0; }
+  .scroller {
+    overflow-x: auto;
+    border: 1px solid var(--lane-line);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 14px 10px;
+  }
+  svg { display: block; min-width: 980px; width: 100%; height: auto; color: var(--ink); }
+
+  svg text { font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; }
+  .lane-label {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    fill: var(--muted);
+  }
+  .node { fill: var(--surface); stroke: var(--line); stroke-width: 1.3; }
+  .node-title { font-size: 13px; font-weight: 600; fill: currentColor; text-anchor: middle; }
+  .node-sub { font-size: 10.5px; fill: var(--muted); text-anchor: middle; }
+  .flow-label { font-size: 10.5px; fill: var(--muted); text-anchor: middle; }
+  .side-label { font-size: 10.5px; fill: var(--muted); }
+  .mem-label { font-size: 10.5px; fill: var(--mem); }
+  .edge { stroke: currentColor; stroke-width: 1.4; fill: none; }
+  .edge-loop { stroke: currentColor; stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
+  .edge-mem { stroke: var(--mem); stroke-width: 1.6; fill: none; }
+  .edge-note { stroke: currentColor; stroke-width: 1.1; fill: none; stroke-dasharray: 3 4; opacity: 0.8; }
+
+  figcaption {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 14px 4px 0;
+    max-width: 90ch;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    margin: 22px 4px 0;
+    font-size: 13px;
+    color: var(--muted);
+    align-items: center;
+  }
+  .legend .key { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { display: inline-block; width: 26px; height: 0; border-top: 2px dashed currentColor; }
+  .swatch.mem { border-top: 2.5px solid var(--mem); }
+  .swatch.gate { border-top: 0; width: 12px; height: 12px; border: 2px solid var(--gate); border-radius: 3px; }
+
+  .notes { margin: 26px 4px 0; padding: 0; list-style: none; display: grid; gap: 10px; max-width: 88ch; }
+  .notes li {
+    font-size: 14px;
+    padding-left: 20px;
+    position: relative;
+  }
+  .notes li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--muted);
+  }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.88em;
+    background: var(--lane);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+</style>
+
+<main>
+  <p class="eyebrow">ETRM Factory · Architecture</p>
+  <h1>Ticket-to-PR Pipeline</h1>
+  <p class="intro">Deterministic Strands graph orchestrating LLM stages, a Claude&nbsp;Code execution runtime, and a long-term lessons loop through AgentCore&nbsp;Memory. Ends at a pull request, never a merge.</p>
+
+  <figure>
+    <div class="scroller">
+      <svg viewBox="0 0 1160 640" role="img" aria-label="Flow diagram: a Linear ticket passes through analyzer, planner, adversary, executor, and reviewer nodes in a Strands graph; the executor delegates to Claude Code in an execution runtime; reviewer findings flow to a curator that writes distilled lessons into AgentCore Memory, which is semantically searched to inject lessons into the planner, the executor workspace, and the reviewer (queried on the diff, blind-first with echo-loop guards); the pipeline ends at a human-reviewed pull request.">
+        <defs>
+          <marker id="m-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+          <marker id="m-mem" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--mem)"/>
+          </marker>
+        </defs>
+
+        <!-- lanes -->
+        <rect x="12" y="50" width="1136" height="250" rx="10" fill="var(--lane)"/>
+        <text class="lane-label" x="28" y="72">STRANDS GRAPH · DETERMINISTIC ORCHESTRATION</text>
+        <rect x="12" y="316" width="1136" height="110" rx="10" fill="var(--lane)"/>
+        <text class="lane-label" x="28" y="338">EXECUTION RUNTIME · AGENTCORE RUNTIME / CODEBUILD</text>
+        <rect x="12" y="442" width="1136" height="170" rx="10" fill="var(--lane)"/>
+        <text class="lane-label" x="28" y="464">LONG-TERM MEMORY · AGENTCORE MEMORY</text>
+
+        <!-- exit box: unsuitable ticket -->
+        <rect class="node" x="140" y="86" width="190" height="40" rx="7"/>
+        <text class="node-sub" x="235" y="102">not suitable / missing info:</text>
+        <text class="node-sub" x="235" y="116">comment on ticket · park</text>
+        <path class="edge" d="M233 192 L233 130" marker-end="url(#m-ink)"/>
+
+        <!-- main row nodes -->
+        <rect class="node" x="30" y="192" width="106" height="58" rx="8"/>
+        <text class="node-title" x="83" y="216">Linear ticket</text>
+        <text class="node-sub" x="83" y="233">webhook</text>
+
+        <rect class="node" x="170" y="192" width="126" height="58" rx="8"/>
+        <text class="node-title" x="233" y="216">Analyzer</text>
+        <text class="node-sub" x="233" y="233">structured output</text>
+
+        <rect class="node" x="342" y="192" width="116" height="58" rx="8"/>
+        <text class="node-title" x="400" y="216">Planner</text>
+        <text class="node-sub" x="400" y="233">Claude Code · plan mode</text>
+
+        <rect class="node" x="504" y="192" width="126" height="58" rx="8"/>
+        <text class="node-title" x="567" y="216">Adversary</text>
+        <text class="node-sub" x="567" y="233">plan vs criteria</text>
+
+        <rect class="node" x="676" y="192" width="126" height="58" rx="8"/>
+        <text class="node-title" x="739" y="216">Executor node</text>
+        <text class="node-sub" x="739" y="233">bridge · no LLM</text>
+
+        <rect class="node" x="848" y="192" width="116" height="58" rx="8"/>
+        <text class="node-title" x="906" y="216">Reviewer</text>
+        <text class="node-sub" x="906" y="233">fresh context · lessons</text>
+
+        <rect class="node" x="1010" y="192" width="120" height="58" rx="8" stroke="var(--gate)" stroke-width="2"/>
+        <text class="node-title" x="1070" y="216">Human gate</text>
+        <text class="node-sub" x="1070" y="233">PR review → merge</text>
+
+        <!-- main flow arrows -->
+        <path class="edge" d="M136 221 L166 221" marker-end="url(#m-ink)"/>
+        <path class="edge" d="M296 221 L338 221" marker-end="url(#m-ink)"/>
+        <text class="flow-label" x="319" y="185">suitable</text>
+        <path class="edge" d="M458 221 L500 221" marker-end="url(#m-ink)"/>
+        <text class="flow-label" x="481" y="185">plan</text>
+        <path class="edge" d="M630 221 L672 221" marker-end="url(#m-ink)"/>
+        <text class="flow-label" x="653" y="185">approved</text>
+        <path class="edge" d="M802 221 L844 221" marker-end="url(#m-ink)"/>
+        <text class="flow-label" x="825" y="185">diff</text>
+        <path class="edge" d="M964 221 L1006 221" marker-end="url(#m-ink)"/>
+        <text class="flow-label" x="987" y="185">approved</text>
+
+        <!-- feedback loops (dashed, capped) -->
+        <path class="edge-loop" d="M540 192 C540 148, 427 148, 427 190" marker-end="url(#m-ink)"/>
+        <text class="flow-label" x="483" y="143">objections · ≤2 iterations</text>
+        <path class="edge-loop" d="M879 192 C879 148, 766 148, 766 190" marker-end="url(#m-ink)"/>
+        <text class="flow-label" x="822" y="143">findings · ≤1 revision</text>
+
+        <!-- runtime box -->
+        <rect class="node" x="560" y="346" width="310" height="60" rx="8"/>
+        <text class="node-title" x="715" y="370">Claude Code · headless</text>
+        <text class="node-sub" x="715" y="388">repo clone · approved plan · lessons file · tests</text>
+
+        <!-- executor <-> runtime -->
+        <path class="edge" d="M698 250 L698 342" marker-end="url(#m-ink)"/>
+        <text class="side-label" x="690" y="292" text-anchor="end">start job</text>
+        <text class="side-label" x="690" y="306" text-anchor="end">plan + lessons</text>
+        <path class="edge" d="M746 346 L746 254" marker-end="url(#m-ink)"/>
+        <text class="side-label" x="754" y="299">diff · branch</text>
+
+        <!-- memory store -->
+        <rect class="node" x="300" y="500" width="300" height="70" rx="8" stroke="var(--mem)" stroke-width="1.6"/>
+        <text class="node-title" x="450" y="526">AgentCore Memory</text>
+        <text class="node-sub" x="450" y="544">semantic search · namespace per repo</text>
+        <text class="node-sub" x="450" y="558">provenance: ticket · date · files</text>
+
+        <!-- curator -->
+        <rect class="node" x="790" y="500" width="160" height="58" rx="8"/>
+        <text class="node-title" x="870" y="524">Curator</text>
+        <text class="node-sub" x="870" y="541">generalize · dedupe</text>
+
+        <!-- reviewer -> curator -->
+        <path class="edge" d="M906 250 L906 496" marker-end="url(#m-ink)"/>
+        <text class="side-label" x="914" y="330">findings · both exit paths</text>
+        <text class="side-label" x="914" y="344">(approved or cap hit)</text>
+
+        <!-- curator -> memory (write) -->
+        <path class="edge-mem" d="M790 532 L604 532" marker-end="url(#m-mem)"/>
+        <text class="mem-label" x="697" y="522" text-anchor="middle">write distilled lessons</text>
+
+        <!-- curator -> repo change (dashed alternative) -->
+        <rect class="node" x="980" y="500" width="158" height="64" rx="7"/>
+        <text class="node-sub" x="1059" y="521">recurring &amp; mechanical:</text>
+        <text class="node-sub" x="1059" y="536">propose lint rule /</text>
+        <text class="node-sub" x="1059" y="551">CLAUDE.md change</text>
+        <path class="edge-note" d="M950 530 L976 530" marker-end="url(#m-ink)"/>
+
+        <!-- memory -> planner (retrieval) -->
+        <path class="edge-mem" d="M390 500 L390 256" marker-end="url(#m-mem)"/>
+        <text class="mem-label" x="382" y="330" text-anchor="end">top-k lessons</text>
+        <text class="mem-label" x="382" y="345" text-anchor="end">query: ticket + areas</text>
+
+        <!-- memory -> runtime workspace (retrieval) -->
+        <path class="edge-mem" d="M560 500 L560 412" marker-end="url(#m-mem)"/>
+        <text class="mem-label" x="570" y="455">lessons file → workspace</text>
+        <text class="mem-label" x="570" y="470">query: approved plan</text>
+      </svg>
+    </div>
+    <figcaption>A Linear ticket flows through a deterministic Strands graph — analyze, plan, critique, implement, review — with the implementation delegated to Claude&nbsp;Code in an isolated runtime. Reviewer findings are distilled by a curator into AgentCore&nbsp;Memory, which is semantically searched to brief the planner, the executor workspace, and the reviewer (diff-queried, blind-first, echo-loop-guarded) on future runs. The pipeline ends at a pull request behind a human gate.</figcaption>
+  </figure>
+
+  <div class="legend">
+    <span class="key"><span class="swatch"></span> bounded feedback loop (iteration cap)</span>
+    <span class="key"><span class="swatch mem"></span> memory write / semantic retrieval</span>
+    <span class="key"><span class="swatch gate"></span> human decision point</span>
+  </div>
+
+  <ul class="notes">
+    <li>Only <strong>Analyzer, Adversary, and Curator</strong> are Strands <code>Agent</code> LLM nodes. The Planner and Reviewer run as headless Claude&nbsp;Code sessions (plan mode) inside the runtime container; the Executor is a custom bridge node — a deterministic step that starts the Claude&nbsp;Code job in CodeBuild and waits. The implementation intelligence lives in the runtime, not the graph.</li>
+    <li>Edge conditions (<em>suitable</em>, <em>objections</em>, <em>findings</em>) are plain functions reading structured output from <code>state.results</code> — no LLM decides routing. Loops carry hard caps; on a cap hit the pipeline still proceeds, and the Curator records the unresolved findings, which are the highest-value lessons.</li>
+    <li>Retrieval is deterministic code, not an agent: embed the query, take the top-k above a similarity threshold, inject as clearly-delimited notes. Three consumers — planner (query: ticket), executor (query: plan), reviewer (query: the diff — reviewing blind first, and tagging lesson-prompted findings so the curator never reinforces a lesson from its own echo).</li>
+  </ul>
+</main>

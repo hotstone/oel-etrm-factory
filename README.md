@@ -18,8 +18,10 @@ Linear issue + agent-ready label
       analyze   Haiku agent, structured output — suitable? acceptance criteria?
       plan      Claude Code plan-mode session over a clone; adversary critique loop (≤2)
       implement CodeBuild job: Claude Code implements, typecheck+tests gate, branch + PR
-      review    fresh Claude Code session over the diff; revision build loop (≤1),
-                unresolved findings posted to the PR
+      review    fresh Claude Code session over the diff (blind, then a lesson
+                check); revision build loop (≤1), unresolved findings posted to the PR
+      curate    findings archived; lessons distilled into long-term memory that
+                briefs future runs (docs/specs/learning-loop.md)
   → PR link (or questions) commented back on the Linear issue
 ```
 
