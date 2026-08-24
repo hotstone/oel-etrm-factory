@@ -1,0 +1,72 @@
+{
+  "ranAt": "2026-08-24T04:32:15.970Z",
+  "passed": 6,
+  "failed": 0,
+  "advisoryFailed": 0,
+  "totalDurationMs": 687481,
+  "results": [
+    {
+      "id": "feature-clean",
+      "issue": "HOT-65",
+      "expected": "pr",
+      "outcome": "completed",
+      "pass": true,
+      "advisory": false,
+      "notes": [],
+      "durationMs": 368263,
+      "prUrl": "https://github.com/hotstone/oel-factory-testproject/pull/8"
+    },
+    {
+      "id": "bug-style",
+      "issue": "HOT-66",
+      "expected": "pr",
+      "outcome": "completed",
+      "pass": true,
+      "advisory": false,
+      "notes": [],
+      "durationMs": 170330,
+      "prUrl": "https://github.com/hotstone/oel-factory-testproject/pull/9"
+    },
+    {
+      "id": "scope-bait",
+      "issue": "HOT-67",
+      "expected": "pr",
+      "outcome": "completed",
+      "pass": true,
+      "advisory": false,
+      "notes": [],
+      "durationMs": 124072,
+      "prUrl": "https://github.com/hotstone/oel-factory-testproject/pull/10"
+    },
+    {
+      "id": "vague",
+      "issue": "HOT-68",
+      "expected": "blocked",
+      "outcome": "blocked",
+      "pass": true,
+      "advisory": false,
+      "notes": [],
+      "durationMs": 7203
+    },
+    {
+      "id": "ambiguous",
+      "issue": "HOT-69",
+      "expected": "blocked",
+      "outcome": "blocked",
+      "pass": true,
+      "advisory": false,
+      "notes": [],
+      "durationMs": 8602
+    },
+    {
+      "id": "unknown-area",
+      "issue": "HOT-70",
+      "expected": "blocked",
+      "outcome": "blocked",
+      "pass": true,
+      "advisory": true,
+      "notes": [],
+      "durationMs": 9011
+    }
+  ]
+}
