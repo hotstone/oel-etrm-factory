@@ -5,13 +5,11 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } from "@aws-sdk/client-bedrock-agentcore";
 import { ConditionalCheckFailedException, DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { shouldFire } from "./filter.mjs";
 
 const REGION = "ap-southeast-2";
 const RUNTIME_ARN = process.env.RUNTIME_ARN;
 const WEBHOOK_SECRET_ID = process.env.WEBHOOK_SECRET_ID ?? "prod/linear/webhook-secret";
-const AGENT_READY_LABEL = "73c75ba5-3ef4-4517-aaaf-573fdd3cc41b";
-const AGENT_IN_PROGRESS_LABEL = "46bd9a14-51e1-4434-a097-2fa43cdf1cac";
-
 const agentcore = new BedrockAgentCoreClient({ region: REGION });
 const secrets = new SecretsManagerClient({ region: REGION });
 const dynamo = new DynamoDBClient({ region: REGION });
@@ -44,21 +42,9 @@ export async function handler(event) {
   }
 
   const payload = JSON.parse(rawBody);
-  if (payload.type !== "Issue" || !["create", "update"].includes(payload.action)) {
-    return ok({ skipped: "not an issue create/update" });
-  }
-
-  const labels = payload.data?.labelIds ?? [];
-  const previous = payload.updatedFrom?.labelIds; // present only when labels changed
-
-  // Fire only on the transition to agent-ready, and never while a run is in flight.
-  const hasReady = labels.includes(AGENT_READY_LABEL);
-  const hadReady = Array.isArray(previous) && previous.includes(AGENT_READY_LABEL);
-  const inProgress = labels.includes(AGENT_IN_PROGRESS_LABEL);
-  const readyAdded =
-    hasReady && (payload.action === "create" || (Array.isArray(previous) && !hadReady));
-  if (!readyAdded || inProgress) {
-    return ok({ skipped: "no agent-ready transition", issue: payload.data?.identifier });
+  const decision = shouldFire(payload);
+  if (!decision.fire) {
+    return ok({ skipped: decision.reason, issue: payload.data?.identifier });
   }
 
   const issueId = payload.data.identifier;

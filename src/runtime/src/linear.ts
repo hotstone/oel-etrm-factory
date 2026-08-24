@@ -10,6 +10,24 @@ export interface LinearIssue {
   comments: { body: string; author: string }[];
 }
 
+/**
+ * Linear occasionally emits raw control characters inside JSON string values
+ * (observed in comment bodies), which strict parsers reject. Parse strictly
+ * first; on failure, escape bare control chars inside string literals and retry.
+ */
+export function parseLenientJson<T>(text: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const sanitized = text.replace(/"(?:[^"\\]|\\.)*"/g, (str) =>
+      str.replace(/[\u0000-\u001f]/g, (c) =>
+        c === "\n" ? "\\n" : c === "\r" ? "\\r" : c === "\t" ? "\\t" : "",
+      ),
+    );
+    return JSON.parse(sanitized) as T;
+  }
+}
+
 async function gql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
   const key = await linearApiKey();
   const resp = await fetch("https://api.linear.app/graphql", {
@@ -17,21 +35,8 @@ async function gql<T>(query: string, variables: Record<string, unknown>): Promis
     headers: { Authorization: key, "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
   });
-  // Linear occasionally emits raw control characters inside JSON string values
-  // (observed in comment bodies), which strict parsers reject. Parse strictly
-  // first; on failure, escape bare control chars inside string literals and retry.
   const text = await resp.text();
-  let data: { data?: T; errors?: { message: string }[] };
-  try {
-    data = JSON.parse(text);
-  } catch {
-    const sanitized = text.replace(/"(?:[^"\\]|\\.)*"/g, (str) =>
-      str.replace(/[\u0000-\u001f]/g, (c) =>
-        c === "\n" ? "\\n" : c === "\r" ? "\\r" : c === "\t" ? "\\t" : "",
-      ),
-    );
-    data = JSON.parse(sanitized);
-  }
+  const data = parseLenientJson<{ data?: T; errors?: { message: string }[] }>(text);
   if (data.errors?.length) throw new Error(`Linear API error: ${data.errors[0]?.message}`);
   if (!data.data) throw new Error("Linear API returned no data");
   return data.data;

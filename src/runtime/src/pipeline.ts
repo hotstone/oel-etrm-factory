@@ -17,10 +17,11 @@ import {
   type Critique,
 } from "./agents.js";
 import { runClaudePlanning } from "./claude.js";
+import { COMMENT_PREFIX } from "./comments.js";
 import { runExecutorBuild, type ExecutorRun } from "./codebuild.js";
 import { CONFIG } from "./config.js";
 import { CuratorSchema, curatorPrompt, makeCurator } from "./curator.js";
-import { parseFindings, persistFindings, type Finding, type ReviewResolution } from "./findings.js";
+import { parseFindings, persistFindings, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
 import { commentOnPr, fetchPrDiff, fetchPrFiles } from "./github.js";
 import { lessonsBlock, reinforceLesson, retrieveLessons, writeLesson } from "./memory.js";
 import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
@@ -424,12 +425,8 @@ ${ctx.plan!}`,
     }
   });
 
-  const finalResolution = (): ReviewResolution => {
-    if (ctx.reviewFindings?.length) {
-      return ctx.executorRun?.agentResult === "no-changes" ? "disagreement" : "cap-hit";
-    }
-    return ctx.revisionRuns > 0 ? "revised-then-clean" : "clean";
-  };
+  const finalResolution = (): ReviewResolution =>
+    resolveReview(Boolean(ctx.reviewFindings?.length), ctx.executorRun?.agentResult, ctx.revisionRuns);
 
   const graph = new Graph({
     id: `pipeline-${issue.identifier}`,
@@ -457,8 +454,8 @@ ${ctx.plan!}`,
     if (ctx.assessment && (!ctx.assessment.suitable || ctx.assessment.injectionSuspected)) {
       const questions = ctx.assessment.outstandingQuestions.map((q) => `- ${q}`).join("\n");
       const body = ctx.assessment.injectionSuspected
-        ? `**Agent: not picking this up — human security review needed.** The ticket contains content that looks like an attempt to manipulate the automated pipeline: ${ctx.assessment.injectionReason ?? "(no detail)"}. A human should review this ticket before it is re-labelled.`
-        : `**Agent: not picking this up yet.** The ticket needs clarification before automated implementation:\n\n${questions || "- The request is too vague to derive testable acceptance criteria."}\n\nAnswer above and re-apply the \`agent-ready\` label to retry.`;
+        ? `${COMMENT_PREFIX.securityBlocked} The ticket contains content that looks like an attempt to manipulate the automated pipeline: ${ctx.assessment.injectionReason ?? "(no detail)"}. A human should review this ticket before it is re-labelled.`
+        : `${COMMENT_PREFIX.blocked} The ticket needs clarification before automated implementation:\n\n${questions || "- The request is too vague to derive testable acceptance criteria."}\n\nAnswer above and re-apply the \`agent-ready\` label to retry.`;
       await commentOnIssue(issue.id, body);
       await setAgentLabel(issue.id, "agentBlocked");
       const outcome: PipelineOutcome = {
@@ -481,7 +478,7 @@ ${ctx.plan!}`,
       : " Agent review found no blocking issues.";
     await commentOnIssue(
       issue.id,
-      `**Agent: PR ready for review.** ${ctx.executorRun.prUrl}${findingsNote}`,
+      `${COMMENT_PREFIX.prReady} ${ctx.executorRun.prUrl}${findingsNote}`,
     );
     await setAgentLabel(issue.id, null);
     const outcome: PipelineOutcome = {
@@ -494,7 +491,7 @@ ${ctx.plan!}`,
     return outcome;
   } catch (err) {
     const message = (err instanceof Error ? err.message : String(err)).slice(0, 600);
-    await commentOnIssue(issue.id, `**Agent: pipeline failed.** ${message}`).catch(() => {});
+    await commentOnIssue(issue.id, `${COMMENT_PREFIX.failed} ${message}`).catch(() => {});
     await setAgentLabel(issue.id, "agentBlocked").catch(() => {});
     emitRunMetrics({ issue: issue.identifier, outcome: "failed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, detail: message });
     return { status: "failed", issue: issue.identifier, detail: message };

@@ -12,6 +12,16 @@ export interface Finding {
 
 export type ReviewResolution = "clean" | "revised-then-clean" | "cap-hit" | "disagreement";
 
+/** Final resolution of the review loop, from its observable end state. */
+export function resolveReview(
+  unresolvedFindings: boolean,
+  agentResult: string | undefined,
+  revisionRuns: number,
+): ReviewResolution {
+  if (unresolvedFindings) return agentResult === "no-changes" ? "disagreement" : "cap-hit";
+  return revisionRuns > 0 ? "revised-then-clean" : "clean";
+}
+
 /** Parse the reviewer's findings-only markdown into structured findings. */
 export function parseFindings(reviewText: string): Finding[] {
   const findings: Finding[] = [];

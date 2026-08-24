@@ -6,6 +6,8 @@ This file is for working on the pipeline itself.
 ## Commands
 
 - `cd src/runtime && npm run typecheck` — strict TS check; run after any runtime change.
+- `cd src/runtime && npm test` — unit tests (vitest); they also gate the Docker image
+  build, so a failing test blocks deploys.
 - `cd src/runtime && npm run dev -- HOT-nn` — run the whole pipeline locally against a Linear
   issue (real side effects: Linear comments/labels, CodeBuild spend, PRs on the test repo).
 - `infra/scripts/deploy-runtime.sh` — build/push image + update the AgentCore runtime. Required
@@ -93,6 +95,12 @@ The plan critic is the **adversary** (adversarial review). Do not introduce "ant
   unexported shell vars / prefix assignments, and only deterministic harness steps push.
   Preserve this in any buildspec or workspace change.
 
+- **Every TypeScript change ships with appropriate unit tests.** Pure/deterministic
+  logic (parsers, predicates, formatters, mappers) gets direct tests in
+  `src/runtime/test/`; extract logic from I/O wrappers when needed to make it testable
+  (see parseLenientJson, outcomeFromComments, shouldFire for the pattern). Prompt
+  *effectiveness* is the eval harness's job, not unit tests'. Linear comment templates
+  live ONLY in `src/comments.ts` — eval recovery matches on those prefixes.
 - **Specs update in the same commit as the change.** Anything that alters the graph
   shape, an agent's role, the security model, operational controls, or the AWS resource
   set must update `docs/specs/` (pipeline.md, learning-loop.md, pipeline-diagram.html)

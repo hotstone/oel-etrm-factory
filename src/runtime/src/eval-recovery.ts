@@ -1,5 +1,31 @@
+import { COMMENT_PREFIX } from "./comments.js";
 import { fetchIssue } from "./linear.js";
 import type { PipelineOutcome } from "./pipeline.js";
+
+/** Pure matcher: reconstruct an outcome from an issue's comments, or null. */
+export function outcomeFromComments(
+  identifier: string,
+  comments: { body: string }[],
+): PipelineOutcome | null {
+  for (const c of comments) {
+    if (c.body.startsWith(COMMENT_PREFIX.prReady)) {
+      const pr = c.body.match(/https:\/\/github\.com\/\S+\/pull\/\d+/)?.[0];
+      return {
+        status: "completed",
+        issue: identifier,
+        detail: `recovered from Linear: ${c.body.slice(0, 200)}`,
+        prUrl: pr,
+      };
+    }
+    if (c.body.startsWith(COMMENT_PREFIX.blocked) || c.body.startsWith(COMMENT_PREFIX.securityBlocked)) {
+      return { status: "blocked", issue: identifier, detail: "analyzer gate (recovered from Linear)" };
+    }
+    if (c.body.startsWith(COMMENT_PREFIX.failed)) {
+      return { status: "failed", issue: identifier, detail: `recovered from Linear: ${c.body.slice(0, 200)}` };
+    }
+  }
+  return null;
+}
 
 /**
  * Recover a pipeline outcome from Linear after the sync invoke connection
@@ -17,23 +43,8 @@ export async function recoverOutcomeFromLinear(
   for (;;) {
     const issue = await fetchIssue(identifier).catch(() => null);
     if (issue) {
-      for (const c of issue.comments) {
-        if (c.body.startsWith("**Agent: PR ready for review.**")) {
-          const pr = c.body.match(/https:\/\/github\.com\/\S+\/pull\/\d+/)?.[0];
-          return {
-            status: "completed",
-            issue: identifier,
-            detail: `recovered from Linear: ${c.body.slice(0, 200)}`,
-            prUrl: pr,
-          };
-        }
-        if (c.body.startsWith("**Agent: not picking this up yet.**")) {
-          return { status: "blocked", issue: identifier, detail: "analyzer gate: not suitable (recovered from Linear)" };
-        }
-        if (c.body.startsWith("**Agent: pipeline failed.**")) {
-          return { status: "failed", issue: identifier, detail: `recovered from Linear: ${c.body.slice(0, 200)}` };
-        }
-      }
+      const outcome = outcomeFromComments(identifier, issue.comments);
+      if (outcome) return outcome;
     }
     if (Date.now() >= deadline) return null;
     await new Promise((r) => setTimeout(r, pollIntervalMs));

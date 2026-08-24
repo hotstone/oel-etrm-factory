@@ -9,9 +9,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-fund --no-audit
 
-COPY tsconfig.json ./
+COPY tsconfig.json vitest.config.ts* ./
 COPY src ./src
-RUN npm run build && npm prune --omit=dev
+COPY test ./test
+# Unit tests gate the image: a failing test fails the build, which fails deploys.
+RUN npm run build && npm test && npm prune --omit=dev
 
 # claude CLI must be on PATH for the planner/reviewer subprocesses.
 ENV PATH="/app/node_modules/.bin:${PATH}"

@@ -42,6 +42,8 @@ isolation boundary; the pipeline ends at a human-reviewed PR — never auto-merg
   `issue.id` on every graph trace); EMF metrics namespace `EtrmFactory/Pipeline` (runs,
   durations, tokens by stage); dashboard `etrm-factory-pipeline`; alarm
   `etrm-factory-pipeline-failed` → SNS `etrm-factory-alerts`.
+- **Unit tests gate deploys**: vitest suite over the deterministic logic (parsers,
+  security wrapper, trigger predicate, metrics shape) runs inside the Docker build.
 - **Evals before deploy**: `e2e/run-evals.sh` runs the graded ticket set against the
   deployed runtime, scores deterministically, commits scorecards to `e2e/evals/results/`.
 
