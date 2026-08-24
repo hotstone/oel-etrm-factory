@@ -10,7 +10,7 @@ AND-dependency semantics deadlock on cyclic edges. Caps/constants: `src/runtime/
 
 | Stage | Where | Model | Role |
 |---|---|---|---|
-| Analyzer | Strands `Agent` in the runtime | Haiku 4.5 | Gate + ticket decomposition: `{suitable, confidence, intent, requirements, acceptanceCriteria, affectedAreas, dependencies, risk, complexity, outstandingQuestions}` — intent/requirements feed planner+adversary, risk tunes review rigour, areas+intent feed retrieval |
+| Analyzer | Strands `Agent` in the runtime | Haiku 4.5 | Gate + ticket decomposition: `{suitable, confidence, intent, requirements, acceptanceCriteria, affectedAreas, dependencies, risk, complexity, outstandingQuestions, injectionSuspected}` — intent/requirements feed planner+adversary, risk tunes review rigour, areas+intent feed retrieval, injection suspicion blocks for human review |
 | Planner | Claude Code subprocess, plan mode (read-only), over a shallow clone | Opus 4.6 | Explores the repo, produces the plan; retrieved lessons injected |
 | Adversary | Strands `Agent` in the runtime | Haiku 4.5 | Refutes plan vs criteria — gaps AND scope creep are blocking; objections revise the plan via `claude --resume` (cap: 2 rounds) |
 | Implementer | Claude Code in CodeBuild `claude-code-executor` | Opus 4.6 | Implements the plan (lessons appended); hard gates (typecheck, tests) before branch push + PR |
@@ -38,6 +38,15 @@ PR link, or a truncated failure message — no silent deaths.
 - **Human gate**: pipeline ends at a PR; never auto-merge. (Branch protection unavailable
   on GitHub Free private repos — the controls above are the compensating mechanism for
   the agent side; the human side is procedural.)
+- **Untrusted input handling**: ticket text/comments are the system's only untrusted
+  input and are treated as data, not instructions — deterministic harness code wraps them
+  in delimiters (embedded delimiter look-alikes stripped first; `src/runtime/src/untrusted.ts`)
+  with a standing ignore-embedded-instructions notice; the analyzer carries an
+  `injectionSuspected` tripwire that routes to a human-security-review block; the reviewer
+  treats security-weakening changes as [blocking] even when the plan calls for them.
+  Internal agents share the ticket as their instruction source, so a consistent poisoning
+  passes internal gates — the two human gates (`agent-ready` labelling and PR review) are
+  the uncorrelated checks and are security controls, not formalities.
 - Secrets in Secrets Manager: `prod/linear/apikey` (JSON, key `api-key`),
   `prod/github/pat` (plain), `prod/linear/webhook-secret`.
 
