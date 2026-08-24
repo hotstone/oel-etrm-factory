@@ -87,6 +87,11 @@ The plan critic is the **adversary** (adversarial review). Do not introduce "ant
   unexported shell vars / prefix assignments, and only deterministic harness steps push.
   Preserve this in any buildspec or workspace change.
 
+- **Specs update in the same commit as the change.** Anything that alters the graph
+  shape, an agent's role, the security model, operational controls, or the AWS resource
+  set must update `docs/specs/` (pipeline.md, learning-loop.md, pipeline-diagram.html)
+  alongside the code. The backlog records *that* something changed; the specs describe
+  the system as it now is — don't let the backlog become the only record.
 - Setup/deploy scripts are idempotent and re-runnable; keep them that way.
 - IAM policies are checked-in JSON under `infra/iam/` — never console-edited.
 - Every stage failure must land on the "comment back to Linear" path; no silent deaths.
