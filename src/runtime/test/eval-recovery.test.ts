@@ -26,3 +26,15 @@ describe("outcomeFromComments", () => {
     expect(outcomeFromComments("HOT-1", [])).toBeNull();
   });
 });
+
+describe("isPipelineComment", () => {
+  it("matches all agent status prefixes and eval markers", async () => {
+    const { isPipelineComment } = await import("../src/comments.js");
+    expect(isPipelineComment(`${COMMENT_PREFIX.blocked} questions...`)).toBe(true);
+    expect(isPipelineComment(`${COMMENT_PREFIX.prReady} url`)).toBe(true);
+    expect(isPipelineComment(`${COMMENT_PREFIX.securityBlocked} reason`)).toBe(true);
+    expect(isPipelineComment(`${COMMENT_PREFIX.failed} err`)).toBe(true);
+    expect(isPipelineComment("Eval case `vague`: PASS (blocked)")).toBe(true);
+    expect(isPipelineComment("Here are the answers to your questions: ...")).toBe(false);
+  });
+});

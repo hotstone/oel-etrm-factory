@@ -2,6 +2,7 @@ import { Agent, BedrockModel } from "@strands-agents/sdk";
 import { z } from "zod";
 import { CONFIG } from "./config.js";
 import type { LinearIssue } from "./linear.js";
+import { isPipelineComment } from "./comments.js";
 import { UNTRUSTED_NOTICE, wrapUntrusted } from "./untrusted.js";
 
 export const AssessmentSchema = z.object({
@@ -78,8 +79,12 @@ do not invent objections.`,
 }
 
 export function analyzerPrompt(issue: LinearIssue): string {
-  const comments = issue.comments.length
-    ? `\n\nComments:\n${issue.comments.map((c) => `- ${c.author}: ${c.body}`).join("\n")}`
+  // The pipeline's own status comments (and eval markers) accumulate on retried
+  // tickets; they read as agent-directed instructions and would trip the
+  // injection tripwire. Only human comments are requirements input.
+  const human = issue.comments.filter((c) => !isPipelineComment(c.body));
+  const comments = human.length
+    ? `\n\nComments:\n${human.map((c) => `- ${c.author}: ${c.body}`).join("\n")}`
     : "";
   return `Assess this ticket. ${UNTRUSTED_NOTICE}
 

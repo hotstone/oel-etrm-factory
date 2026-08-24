@@ -9,3 +9,11 @@ export const COMMENT_PREFIX = {
   securityBlocked: "**Agent: not picking this up — human security review needed.**",
   failed: "**Agent: pipeline failed.**",
 } as const;
+
+/** True for comments the pipeline itself authored (agent status + eval markers). */
+export function isPipelineComment(body: string): boolean {
+  return (
+    Object.values(COMMENT_PREFIX).some((prefix) => body.startsWith(prefix)) ||
+    body.startsWith("Eval case `")
+  );
+}
