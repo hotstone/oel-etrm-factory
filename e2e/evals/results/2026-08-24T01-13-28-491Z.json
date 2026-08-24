@@ -1,0 +1,20 @@
+{
+  "ranAt": "2026-08-24T01:13:28.491Z",
+  "passed": 1,
+  "failed": 0,
+  "advisoryFailed": 0,
+  "totalDurationMs": 357620,
+  "results": [
+    {
+      "id": "feature-clean",
+      "issue": "HOT-64",
+      "expected": "pr",
+      "outcome": "completed",
+      "pass": true,
+      "advisory": false,
+      "notes": [],
+      "durationMs": 357620,
+      "prUrl": "https://github.com/hotstone/oel-factory-testproject/pull/7"
+    }
+  ]
+}

@@ -1,5 +1,13 @@
 # Phase 2 — Curator and long-term memory
 
+**STATUS: IMPLEMENTED 2026-08-24.** All components below are live and verified:
+store `etrm_factory_lessons-Zv1mYYATxG` (semantic strategy `lessons-5besGmFODm`,
+namespace `/lessons/<repo-slug>`), findings table `etrm-factory-findings`, retrieval in
+all three stages (seed lesson injected at 0.45 relevance in a live run), blind-first
+phase-2 review, and the curator (drop / new_lesson / reinforce each demonstrated live,
+echo guard code-enforced). Provisioning: `infra/scripts/create-memory.sh`. Config knobs
+(topK, relevance floor 0.4): `src/runtime/src/config.ts` → `memory`.
+
 Goal: reviewer findings become durable lessons that brief future runs. Design agreed
 2026-08-20 (see the diagram in `docs/specs/pipeline.md`).
 
@@ -55,7 +63,14 @@ Soft/contextual lessons → memory store. Hard, mechanically-checkable lessons �
 proposes a repo change instead (lint rule, test, CLAUDE.md addition in the target repo):
 a CI check is a guarantee, a memory note is a reminder.
 
-## Prerequisite
+## Prerequisite (done)
 
-Findings persistence was deliberately skipped in Phase 1 (test data only). Phase 2 starts
-by persisting reviewer findings with provenance, then backfills the curator over them.
+Findings persistence was deliberately skipped in Phase 1; it now writes to
+`etrm-factory-findings` on every review exit path with full provenance.
+
+## Follow-ups
+
+- Lesson expiry: `occurrences`/`lastSeenAt` metadata exists; nothing prunes stale lessons yet.
+- Two-tier hard lessons: repoChangeSuggestion is recorded inside the lesson text; auto-PRing
+  lint rules/CLAUDE.md changes to the target repo is future work.
+- Analyzer schema enrichment (see hardening backlog) will sharpen the planner retrieval query.

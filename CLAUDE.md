@@ -52,6 +52,17 @@ The plan critic is the **adversary** (adversarial review). Do not introduce "ant
 - The webhook Lambda fires only on the **transition** to `agent-ready` and skips issues
   labelled `agent-in-progress`.
 
+## Lessons memory (Phase 2)
+
+- Store `etrm_factory_lessons-Zv1mYYATxG` (AgentCore Memory, semantic strategy
+  `lessons-5besGmFODm`); config in `src/runtime/src/config.ts` → `memory`. Direct record
+  writes (`BatchCreateMemoryRecords`) need the strategyId AND namespace; retrieval scores
+  sit ~0.4–0.5 even for clearly related queries — don't raise the floor casually.
+- The curator's echo guard is code-enforced in the curate node: findings tagged
+  `[lesson:<id>]` may only reinforce; never let the LLM decide that.
+- Findings persist to DynamoDB `etrm-factory-findings` on every review exit; persistence
+  and memory calls are best-effort and must never fail the pipeline.
+
 ## Observability
 
 - Tracing rides on **ADOT JS preloaded in the Dockerfile CMD** (`node --require
