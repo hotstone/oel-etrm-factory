@@ -144,8 +144,11 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
     const criteria = assessment.acceptanceCriteria.map((c) => `- ${c}`).join("\n");
 
     const planLessons = await retrieveLessons(
-      `${ctx.issue.title}\n${ctx.issue.description}\n${assessment.affectedAreas.join(" ")}`,
+      `${ctx.issue.title}\n${assessment.intent}\n${ctx.issue.description}\n${assessment.affectedAreas.join(" ")}`,
     );
+    const deps = assessment.dependencies.length
+      ? `\n\n## Dependencies\n${assessment.dependencies.map((d) => `- ${d}`).join("\n")}`
+      : "";
     const first = await runClaudePlanning(
       ctx.workspace,
       `${PLAN_PROMPT_HEADER}
@@ -154,8 +157,14 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
 
 ${ctx.issue.description}
 
+## Intent
+${assessment.intent}
+
+## Requirements
+${assessment.requirements.map((r) => `- ${r}`).join("\n")}
+
 ## Acceptance criteria
-${criteria}${lessonsBlock(planLessons)}`,
+${criteria}${deps}${lessonsBlock(planLessons)}`,
     );
     ctx.plan = first.text;
     ctx.planSessionId = first.sessionId;
@@ -211,9 +220,14 @@ Revise the plan to address them. Output the full revised plan in the same format
     let outTok = 0;
     for (;;) {
       const diff = await fetchPrDiff(ctx.executorRun!.prNumber);
-      const review = await runClaudePlanning(
+      const riskNote =
+        ctx.assessment!.risk === "high"
+          ? "This ticket is HIGH RISK (correctness/money/security impact) — review with extra rigour.\n"
+          : "";
+      let review = await runClaudePlanning(
         ctx.workspace!,
         `You are reviewing a pull request diff against ticket ${ctx.issue.identifier} and its plan.
+${riskNote}Ticket intent: ${ctx.assessment!.intent}
 Read any repository context you need. Report every mismatch with the plan or acceptance
 criteria, and every correctness bug in the diff. Do not comment on style. Your entire
 output must be ONLY a "## Findings" section with one bullet per finding prefixed
@@ -232,6 +246,27 @@ ${ctx.plan!}
 ${diff}
 \`\`\``,
       );
+      // Format guard: a non-empty review that is neither "No findings." nor
+      // parseable bullets would silently read as clean. Retry once with a
+      // format reminder; if still unparseable, fail loudly.
+      if (!review.text.includes("No findings.") && parseFindings(review.text).length === 0) {
+        console.warn("[review] unparseable output; retrying with format reminder");
+        review = await runClaudePlanning(
+          ctx.workspace!,
+          `Your previous response did not match the required format. Re-output your review as
+ONLY a "## Findings" section with one bullet per finding, each starting with "- [blocking]"
+or "- [minor]", or the exact text "No findings." if the diff is clean.`,
+          review.sessionId,
+        );
+        inTok += review.inputTokens;
+        outTok += review.outputTokens;
+        spend(review.inputTokens, review.outputTokens);
+        if (!review.text.includes("No findings.") && parseFindings(review.text).length === 0) {
+          throw new Error(
+            `reviewer output unparseable after retry (first 200 chars: ${review.text.slice(0, 200)})`,
+          );
+        }
+      }
 
       inTok += review.inputTokens;
       outTok += review.outputTokens;
@@ -412,7 +447,7 @@ ${ctx.plan!}`,
     stages = stagesFrom(result.results);
 
     if (ctx.assessment && !ctx.assessment.suitable) {
-      const questions = ctx.assessment.missingInfo.map((q) => `- ${q}`).join("\n");
+      const questions = ctx.assessment.outstandingQuestions.map((q) => `- ${q}`).join("\n");
       await commentOnIssue(
         issue.id,
         `**Agent: not picking this up yet.** The ticket needs clarification before automated implementation:\n\n${questions || "- The request is too vague to derive testable acceptance criteria."}\n\nAnswer above and re-apply the \`agent-ready\` label to retry.`,

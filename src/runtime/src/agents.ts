@@ -6,9 +6,14 @@ import type { LinearIssue } from "./linear.js";
 export const AssessmentSchema = z.object({
   suitable: z.boolean().describe("Whether this ticket is well-specified enough for automated implementation"),
   confidence: z.number().min(0).max(1),
-  missingInfo: z.array(z.string()).describe("Questions that must be answered before work can start; empty if none"),
+  intent: z.string().describe("Why this ticket exists — the outcome the author wants, in one or two sentences"),
+  requirements: z.array(z.string()).describe("What must be true when done, as stated or clearly implied (broader than testable criteria)"),
   acceptanceCriteria: z.array(z.string()).describe("Concrete, testable criteria distilled from the ticket"),
   affectedAreas: z.array(z.string()).describe("Files or modules likely involved, if inferable"),
+  dependencies: z.array(z.string()).describe("Other systems, modules, tickets, or decisions this work depends on; empty if none"),
+  risk: z.enum(["low", "medium", "high"]).describe("Risk of an incorrect implementation causing real damage (data correctness, money, security)"),
+  complexity: z.enum(["trivial", "simple", "moderate", "complex"]).describe("Expected implementation effort and breadth of change"),
+  outstandingQuestions: z.array(z.string()).describe("Questions that must be answered before work can start; empty if none"),
 });
 export type Assessment = z.infer<typeof AssessmentSchema>;
 
@@ -34,11 +39,14 @@ export function makeAnalyzer(): Agent {
     printer: false,
     model: lightModel(),
     structuredOutputSchema: AssessmentSchema,
-    systemPrompt: `You assess issue tickets for automated implementation by a coding agent
-against a TypeScript library. A ticket is suitable only if a competent engineer could start
-work without asking questions: the intended behavior is unambiguous and testable. Distill
-concrete acceptance criteria. If information is missing, list precise questions — do not
-guess the author's intent. Vague aspirations ("make it better") are not suitable.`,
+    systemPrompt: `You produce a structured breakdown of issue tickets for an automated
+coding pipeline targeting a TypeScript library. Capture the author's intent, the
+requirements, concrete testable acceptance criteria, likely affected areas, dependencies,
+risk, and complexity. A ticket is suitable only if a competent engineer could start work
+without asking questions: the intended behavior is unambiguous and testable. If
+information is missing, list precise outstanding questions — do not guess the author's
+intent. Vague aspirations ("make it better") are not suitable. Tickets referencing
+components that plausibly do not exist in a small trading library are not suitable.`,
   });
 }
 
@@ -68,7 +76,13 @@ export function analyzerPrompt(issue: LinearIssue): string {
 }
 
 export function adversaryPrompt(assessment: Assessment, plan: string): string {
-  return `Acceptance criteria:\n${assessment.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}
+  return `Ticket intent: ${assessment.intent}
+
+Requirements:
+${assessment.requirements.map((r) => `- ${r}`).join("\n")}
+
+Acceptance criteria:
+${assessment.acceptanceCriteria.map((c) => `- ${c}`).join("\n")}
 
 Implementation plan to review:
 ${plan}`;

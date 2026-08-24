@@ -35,7 +35,7 @@ as a delimited block via `lessonsBlock()`.
 
 | Consumer | Query | Injection point |
 |---|---|---|
-| Planner | ticket title + description + analyzer's affected areas | appended to the plan prompt |
+| Planner | ticket title + analyzer's intent + description + affected areas | appended to the plan prompt |
 | Implementer | the approved plan | appended to the plan payload sent to CodeBuild |
 | Reviewer | the PR diff (strongest signal — ground truth of what changed) | phase-2 only, see below |
 

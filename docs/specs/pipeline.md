@@ -10,11 +10,11 @@ AND-dependency semantics deadlock on cyclic edges. Caps/constants: `src/runtime/
 
 | Stage | Where | Model | Role |
 |---|---|---|---|
-| Analyzer | Strands `Agent` in the runtime | Haiku 4.5 | Gate: is the ticket well-specified? Emits `{suitable, confidence, missingInfo, acceptanceCriteria, affectedAreas}` |
+| Analyzer | Strands `Agent` in the runtime | Haiku 4.5 | Gate + ticket decomposition: `{suitable, confidence, intent, requirements, acceptanceCriteria, affectedAreas, dependencies, risk, complexity, outstandingQuestions}` — intent/requirements feed planner+adversary, risk tunes review rigour, areas+intent feed retrieval |
 | Planner | Claude Code subprocess, plan mode (read-only), over a shallow clone | Opus 4.6 | Explores the repo, produces the plan; retrieved lessons injected |
 | Adversary | Strands `Agent` in the runtime | Haiku 4.5 | Refutes plan vs criteria — gaps AND scope creep are blocking; objections revise the plan via `claude --resume` (cap: 2 rounds) |
 | Implementer | Claude Code in CodeBuild `claude-code-executor` | Opus 4.6 | Implements the plan (lessons appended); hard gates (typecheck, tests) before branch push + PR |
-| Reviewer | Claude Code subprocess, fresh context | Opus 4.6 | Blind review of the PR diff, then a phase-2 lesson check; blocking findings → one revision build (cap: 1); unresolved findings or an implementer "no-changes" disagreement are posted to the PR for the human |
+| Reviewer | Claude Code subprocess, fresh context | Opus 4.6 | Blind review of the PR diff (findings format is guarded: unparseable output retries once, then fails loudly), then a phase-2 lesson check; blocking findings → one revision build (cap: 1); unresolved findings or an implementer "no-changes" disagreement are posted to the PR for the human |
 | Curator | Strands `Agent` in the runtime | Haiku 4.5 | Terminal node: persists findings, distills lessons — see `docs/specs/learning-loop.md` |
 
 ## Trigger and feedback
