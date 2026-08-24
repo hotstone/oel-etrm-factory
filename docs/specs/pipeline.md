@@ -32,6 +32,11 @@ failure message.
 Published artifact (includes the phase-2 memory loop):
 https://claude.ai/code/artifact/78c140cf-f531-4adf-aac0-01af21d36353
 
+## Learning loop
+
+Reviewer findings are archived and distilled into long-term lessons that brief future
+runs (planner, implementer, reviewer). Full specification: `docs/specs/learning-loop.md`.
+
 ## Design principles
 
 - Deterministic orchestration — no LLM decides routing; conditions are plain functions.

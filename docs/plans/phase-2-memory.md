@@ -1,6 +1,6 @@
 # Phase 2 — Curator and long-term memory
 
-**STATUS: IMPLEMENTED 2026-08-24.** All components below are live and verified:
+**STATUS: IMPLEMENTED 2026-08-24 — operational specification now lives in `docs/specs/learning-loop.md`; this file is the design history.** All components below are live and verified:
 store `etrm_factory_lessons-Zv1mYYATxG` (semantic strategy `lessons-5besGmFODm`,
 namespace `/lessons/<repo-slug>`), findings table `etrm-factory-findings`, retrieval in
 all three stages (seed lesson injected at 0.45 relevance in a live run), blind-first
