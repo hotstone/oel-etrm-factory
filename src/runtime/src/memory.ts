@@ -34,6 +34,8 @@ export async function retrieveLessons(query: string): Promise<Lesson[]> {
         maxResults: CONFIG.memory.retrievalTopK,
       }),
     );
+    const hits = (resp.memoryRecordSummaries ?? []).length;
+    console.log(`[memory] retrieval: ${hits} candidate(s) for query "${query.slice(0, 80).replace(/\n/g, " ")}..."`);
     return (resp.memoryRecordSummaries ?? [])
       .filter((r) => (r.score ?? 0) >= CONFIG.memory.minRelevance)
       .map((r) => ({

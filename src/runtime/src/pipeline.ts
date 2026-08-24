@@ -88,6 +88,7 @@ class StepNode extends Node {
   // eslint-disable-next-line require-yield
   async *handle(_input: MultiAgentInput, _state: MultiAgentState, _options?: NodeInputOptions): NodeGen {
     const out = await withSpan(`pipeline.${this.id}`, { "node.id": this.id }, this.fn);
+    console.log(`[stage:${this.id}] ${out.summary.slice(0, 300).replace(/\n/g, " ")}`);
     return { content: [new TextBlock(out.summary)], usage: out.usage };
   }
 }
