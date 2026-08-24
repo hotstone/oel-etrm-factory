@@ -1,0 +1,44 @@
+name: Eval sweep
+# Manual only: each pr-expected case is a full pipeline run and costs real money.
+on:
+  workflow_dispatch:
+    inputs:
+      cases:
+        description: "Space-separated case ids (empty = full sweep)"
+        required: false
+        default: ""
+
+permissions:
+  id-token: write # OIDC → AWS
+  contents: write # commit the scorecard
+
+concurrency: eval # never two sweeps at once (shared Linear/GitHub side effects)
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::007460876082:role/etrm-factory-github-actions
+          aws-region: ap-southeast-2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/runtime/package-lock.json
+      - run: npm ci
+        working-directory: src/runtime
+      - name: Run sweep against the DEPLOYED runtime
+        working-directory: src/runtime
+        run: npm run eval -- ${{ inputs.cases }}
+      - name: Commit scorecard
+        if: always()
+        run: |
+          git config user.name "etrm-factory-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add e2e/evals/results
+          git diff --cached --quiet || git commit -m "Eval scorecard (CI run ${{ github.run_id }})"
+          git push

@@ -48,6 +48,10 @@ isolation boundary; the pipeline ends at a human-reviewed PR — never auto-merg
   `issue.id` on every graph trace); EMF metrics namespace `EtrmFactory/Pipeline` (runs,
   durations, tokens by stage); dashboard `etrm-factory-pipeline`; alarm
   `etrm-factory-pipeline-failed` → SNS `etrm-factory-alerts`.
+- **CI (GitHub Actions)**: `ci.yml` runs typecheck + the full unit suite + script syntax
+  on every push/PR; `eval.yml` (manual dispatch) runs the sweep from CI and commits the
+  scorecard; `deploy.yml` (manual dispatch, per-component) runs the deploy scripts. AWS
+  auth via OIDC role `etrm-factory-github-actions` — no stored keys.
 - **Unit tests gate deploys**: vitest suite over the deterministic logic (parsers,
   security wrapper, trigger predicate, metrics shape) runs inside the Docker build.
 - **Evals before deploy**: `e2e/run-evals.sh` runs the graded ticket set against the

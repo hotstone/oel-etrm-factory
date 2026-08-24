@@ -1,0 +1,55 @@
+name: Deploy
+# Manual only: deploys are paired with smoke tests and eval judgment.
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "What to deploy"
+        required: true
+        type: choice
+        options: [runtime, trigger, codebuild-project, executor-image]
+
+permissions:
+  id-token: write # OIDC → AWS
+
+concurrency: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::007460876082:role/etrm-factory-github-actions
+          aws-region: ap-southeast-2
+      - name: Set up QEMU (arm64 image builds on x86 runners)
+        if: inputs.component == 'runtime' || inputs.component == 'executor-image'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Deploy runtime
+        if: inputs.component == 'runtime'
+        run: ./infra/scripts/deploy-runtime.sh
+      - name: Deploy trigger
+        if: inputs.component == 'trigger'
+        run: ./infra/scripts/deploy-trigger.sh
+      - name: Update CodeBuild project
+        if: inputs.component == 'codebuild-project'
+        run: ./infra/scripts/create-codebuild.sh
+      - name: Build executor image
+        if: inputs.component == 'executor-image'
+        run: ./infra/scripts/build-executor-image.sh
+      - name: Wait for runtime READY
+        if: inputs.component == 'runtime'
+        run: |
+          for i in $(seq 1 20); do
+            S=$(aws bedrock-agentcore-control get-agent-runtime \
+              --agent-runtime-id etrm_factory_pipeline-WNJDR0HSAQ --query status --output text)
+            echo "$S"
+            [ "$S" = "READY" ] && exit 0
+            [ "$S" = "UPDATE_FAILED" ] && exit 1
+            sleep 15
+          done
+          exit 1

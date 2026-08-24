@@ -14,6 +14,8 @@ This file is for working on the pipeline itself.
   after any `src/runtime/src` change; local runs do NOT update the deployed runtime.
 - `infra/scripts/create-codebuild.sh` — push `infra/codebuild/buildspec.yml` changes to the CodeBuild project.
 - `infra/scripts/deploy-trigger.sh` — deploy the webhook Lambda.
+- GitHub Actions: CI (typecheck+tests) on every push; `Eval sweep` and `Deploy` are
+  manual `workflow_dispatch` (`gh workflow run`). AWS auth is OIDC — no repo secrets.
 
 ## Evals before deploy
 
