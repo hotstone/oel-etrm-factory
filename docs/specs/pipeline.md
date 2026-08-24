@@ -17,6 +17,12 @@ AND-dependency semantics deadlock on cyclic edges. Caps/constants: `src/runtime/
 | Reviewer | Claude Code subprocess, fresh context | Opus 4.6 | Blind review of the PR diff (findings format is guarded: unparseable output retries once, then fails loudly), then a phase-2 lesson check; blocking findings → one revision build (cap: 1); unresolved findings or an implementer "no-changes" disagreement are posted to the PR for the human |
 | Curator | Strands `Agent` in the runtime | Haiku 4.5 | Terminal node: persists findings, distills lessons — see `docs/specs/learning-loop.md` |
 
+**Target-repo conventions are the target repo's concern.** The delivery contract is that
+the implementer complies with the target repo's contained docs (`CLAUDE.md`, contributing
+guides — auto-loaded by Claude Code): test commands, CI expectations, conventions. The
+pipeline defines no per-project CI; a target repo that documents its checks gets them
+honored per-project. (Decision 2026-08-24.)
+
 ## Trigger and feedback
 
 Linear webhook (team-scoped) → Lambda `etrm-factory-trigger`: HMAC verify → fire only on
