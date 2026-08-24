@@ -20,6 +20,27 @@
       "Resource": "arn:aws:iam::007460876082:role/etrm-agent-bedrock-only"
     },
     {
+      "Sid": "LessonsMemory",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:RetrieveMemoryRecords",
+        "bedrock-agentcore:BatchCreateMemoryRecords",
+        "bedrock-agentcore:BatchUpdateMemoryRecords",
+        "bedrock-agentcore:ListMemoryRecords",
+        "bedrock-agentcore:GetMemoryRecord"
+      ],
+      "Resource": "arn:aws:bedrock-agentcore:ap-southeast-2:007460876082:memory/etrm_factory_lessons-Zv1mYYATxG"
+    },
+    {
+      "Sid": "FindingsTable",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:Query"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-southeast-2:007460876082:table/etrm-factory-findings"
+    },
+    {
       "Sid": "ExecutorBuilds",
       "Effect": "Allow",
       "Action": [

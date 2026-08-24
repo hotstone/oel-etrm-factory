@@ -19,7 +19,10 @@ import {
 import { runClaudePlanning } from "./claude.js";
 import { runExecutorBuild, type ExecutorRun } from "./codebuild.js";
 import { CONFIG } from "./config.js";
-import { commentOnPr, fetchPrDiff } from "./github.js";
+import { CuratorSchema, curatorPrompt, makeCurator } from "./curator.js";
+import { parseFindings, persistFindings, type Finding, type ReviewResolution } from "./findings.js";
+import { commentOnPr, fetchPrDiff, fetchPrFiles } from "./github.js";
+import { lessonsBlock, reinforceLesson, retrieveLessons, writeLesson } from "./memory.js";
 import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
 import { emitRunMetrics, type StageStat } from "./metrics.js";
 import { withSpan } from "./telemetry.js";
@@ -46,6 +49,7 @@ interface RunContext {
   critiques: Critique[];
   executorRun?: ExecutorRun;
   reviewFindings?: string[];
+  reviewPasses: { pass: number; prNumber: string; files: string[]; findings: Finding[] }[];
   revisionRuns: number;
 }
 
@@ -106,7 +110,7 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
   const runStart = Date.now();
   let stages: StageStat[] = [];
   const issue = await fetchIssue(issueIdentifier);
-  const ctx: RunContext = { tokensUsed: 0, issue, critiques: [], revisionRuns: 0 };
+  const ctx: RunContext = { tokensUsed: 0, issue, critiques: [], reviewPasses: [], revisionRuns: 0 };
   const spend = (input: number, output: number) => {
     ctx.tokensUsed += input + output;
   };
@@ -138,6 +142,9 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
     const assessment = ctx.assessment!;
     const criteria = assessment.acceptanceCriteria.map((c) => `- ${c}`).join("\n");
 
+    const planLessons = await retrieveLessons(
+      `${ctx.issue.title}\n${ctx.issue.description}\n${assessment.affectedAreas.join(" ")}`,
+    );
     const first = await runClaudePlanning(
       ctx.workspace,
       `${PLAN_PROMPT_HEADER}
@@ -147,7 +154,7 @@ export async function runPipeline(issueIdentifier: string): Promise<PipelineOutc
 ${ctx.issue.description}
 
 ## Acceptance criteria
-${criteria}`,
+${criteria}${lessonsBlock(planLessons)}`,
     );
     ctx.plan = first.text;
     ctx.planSessionId = first.sessionId;
@@ -187,11 +194,12 @@ Revise the plan to address them. Output the full revised plan in the same format
   });
 
   const implementNode = new StepNode("implement", async () => {
+    const implLessons = await retrieveLessons(ctx.plan!);
     ctx.executorRun = await runExecutorBuild({
       issueId: ctx.issue.identifier,
       issueTitle: ctx.issue.title,
       issueUrl: ctx.issue.url,
-      plan: ctx.plan!,
+      plan: `${ctx.plan!}${lessonsBlock(implLessons)}`,
       runLabel: "initial",
     });
     return { summary: ctx.executorRun.prUrl };
@@ -227,17 +235,64 @@ ${diff}
       inTok += review.inputTokens;
       outTok += review.outputTokens;
       spend(review.inputTokens, review.outputTokens);
-      const blocking = review.text
+      // Phase 2 (blind-first guard): the review above ran with NO lessons in
+      // context. Only now check past lessons against the diff, in the same
+      // session, tagging anything they surface for the curator's echo guard.
+      let reviewText = review.text;
+      const reviewLessons = await retrieveLessons(diff);
+      if (reviewLessons.length > 0) {
+        const phase2 = await runClaudePlanning(
+          ctx.workspace!,
+          `Past review cycles in this repository produced the lessons below. For each one,
+check whether the same problem applies to the diff you just reviewed. Output ONLY new
+findings in the same format ("- [blocking] ..." / "- [minor] ..."), each ending with the
+lesson's tag (e.g. [lesson:abc]). Do not repeat findings you already reported. If none of
+the lessons apply, output exactly "No findings.".
+${lessonsBlock(reviewLessons)}`,
+          review.sessionId,
+        );
+        inTok += phase2.inputTokens;
+        outTok += phase2.outputTokens;
+        spend(phase2.inputTokens, phase2.outputTokens);
+        if (!phase2.text.includes("No findings.")) reviewText = `${review.text}\n${phase2.text}`;
+      }
+
+      const passFindings = parseFindings(reviewText);
+      const prFiles = await fetchPrFiles(ctx.executorRun!.prNumber).catch(() => []);
+      ctx.reviewPasses.push({
+        pass: ctx.revisionRuns + 1,
+        prNumber: ctx.executorRun!.prNumber,
+        files: prFiles,
+        findings: passFindings,
+      });
+      const persistAll = async (resolution: ReviewResolution) => {
+        for (const p of ctx.reviewPasses) {
+          await persistFindings({
+            issueId: ctx.issue.identifier,
+            prNumber: p.prNumber,
+            reviewPass: p.pass,
+            resolution,
+            files: p.files,
+            findings: p.findings,
+          });
+        }
+      };
+
+      const blocking = reviewText
         .split("\n")
         .filter((l) => l.toLowerCase().includes("[blocking]"));
       ctx.reviewFindings = blocking;
-      if (blocking.length === 0) return { summary: "clean", usage: usageOf(inTok, outTok) };
+      if (blocking.length === 0) {
+        await persistAll(ctx.revisionRuns > 0 ? "revised-then-clean" : "clean");
+        return { summary: "clean", usage: usageOf(inTok, outTok) };
+      }
       if (ctx.revisionRuns >= CONFIG.limits.reviewIterations) {
         // Cap hit: surface the findings on the PR for the human reviewer.
         await commentOnPr(
           ctx.executorRun!.prNumber,
-          `**Agent review — unresolved findings** (revision cap reached; human attention needed):\n\n${review.text}`,
+          `**Agent review — unresolved findings** (revision cap reached; human attention needed):\n\n${reviewText}`,
         );
+        await persistAll("cap-hit");
         return {
           summary: `cap-hit: ${blocking.length} unresolved finding(s) posted to PR`,
           usage: usageOf(inTok, outTok),
@@ -266,8 +321,9 @@ ${ctx.plan!}`,
         // call for the human, not a failure.
         await commentOnPr(
           ctx.executorRun.prNumber,
-          `**Agent disagreement — human judgment needed.** The reviewer raised blocking findings, but the revision run concluded no change is warranted:\n\n${review.text}`,
+          `**Agent disagreement — human judgment needed.** The reviewer raised blocking findings, but the revision run concluded no change is warranted:\n\n${reviewText}`,
         );
+        await persistAll("disagreement");
         return {
           summary: `disagreement: implementer declined ${blocking.length} finding(s); posted to PR`,
           usage: usageOf(inTok, outTok),
@@ -276,14 +332,74 @@ ${ctx.plan!}`,
     }
   });
 
+  const curateNode = new StepNode("curate", async () => {
+    try {
+      const all = ctx.reviewPasses.flatMap((p) =>
+        p.findings.map((f) => ({ ...f, resolution: finalResolution() })),
+      );
+      if (all.length === 0) return { summary: "no findings to curate" };
+
+      // Echo guard (code-enforced, not prompt-enforced): findings prompted by
+      // an injected lesson only ever refresh that lesson's provenance.
+      const tagged = all.filter((f) => f.lessonId);
+      for (const f of tagged) await reinforceLesson(f.lessonId!, ctx.issue.identifier);
+      const organic = all.filter((f) => !f.lessonId);
+      if (organic.length === 0) return { summary: `reinforced ${tagged.length} lesson(s); no organic findings` };
+
+      const existing = await retrieveLessons(organic.map((f) => f.text).join("\n"));
+      const curator = makeCurator();
+      const result = await curator.invoke(curatorPrompt(organic, existing));
+      const cu = result.metrics?.accumulatedUsage;
+      if (cu) spend(cu.inputTokens, cu.outputTokens);
+      const { decisions } = CuratorSchema.parse(result.structuredOutput);
+
+      const knownIds = new Set(existing.map((l) => l.memoryRecordId));
+      let created = 0;
+      let reinforced = tagged.length;
+      for (const d of decisions) {
+        const f = organic[d.finding];
+        if (!f) continue;
+        if (d.action === "new_lesson" && d.lessonText) {
+          const text = d.repoChangeSuggestion
+            ? `${d.lessonText} (Proposed repo change: ${d.repoChangeSuggestion})`
+            : d.lessonText;
+          const id = await writeLesson(text, {
+            issueId: ctx.issue.identifier,
+            files: ctx.reviewPasses.flatMap((p) => p.files),
+          });
+          if (id) created++;
+        } else if (d.action === "reinforce" && d.reinforceLessonId && knownIds.has(d.reinforceLessonId)) {
+          await reinforceLesson(d.reinforceLessonId, ctx.issue.identifier);
+          reinforced++;
+        }
+      }
+      return {
+        summary: `curated ${organic.length} finding(s): ${created} new lesson(s), ${reinforced} reinforced`,
+        usage: cu ? usageOf(cu.inputTokens, cu.outputTokens) : undefined,
+      };
+    } catch (err) {
+      // Curation must never fail the run.
+      console.error("curator failed:", err);
+      return { summary: `curator failed: ${String(err).slice(0, 200)}` };
+    }
+  });
+
+  const finalResolution = (): ReviewResolution => {
+    if (ctx.reviewFindings?.length) {
+      return ctx.executorRun?.agentResult === "no-changes" ? "disagreement" : "cap-hit";
+    }
+    return ctx.revisionRuns > 0 ? "revised-then-clean" : "clean";
+  };
+
   const graph = new Graph({
     id: `pipeline-${issue.identifier}`,
     traceAttributes: { "issue.id": issue.identifier, "gen_ai.conversation.id": issue.identifier },
-    nodes: [analyzeNode, planNode, implementNode, reviewNode],
+    nodes: [analyzeNode, planNode, implementNode, reviewNode, curateNode],
     edges: [
       { source: "analyze", target: "plan", handler: () => ctx.assessment?.suitable === true },
       { source: "plan", target: "implement", handler: () => Boolean(ctx.plan) },
       ["implement", "review"],
+      ["review", "curate"],
     ],
     maxSteps: 10,
     timeout: CONFIG.limits.graphTimeoutMs,

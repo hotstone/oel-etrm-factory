@@ -8,6 +8,17 @@ export const CONFIG = {
     light: "au.anthropic.claude-haiku-4-5-20251001-v1:0",
   },
   repo: "hotstone/oel-factory-testproject",
+  memory: {
+    // AgentCore Memory store for the lessons loop (created by infra/scripts/create-memory.sh).
+    memoryId: "etrm_factory_lessons-Zv1mYYATxG",
+    strategyId: "lessons-5besGmFODm",
+    // Namespace per target repo keeps lessons from leaking across codebases.
+    namespace: "/lessons/oel-factory-testproject",
+    findingsTable: "etrm-factory-findings",
+    retrievalTopK: 4,
+    // retrieve-memory-records relevance floor (0..1); below this, lessons are noise.
+    minRelevance: 0.4,
+  },
   codebuildProject: "claude-code-executor",
   artifactsBucket: "etrmfactory-agent-artifacts-007460876082",
   secrets: {
