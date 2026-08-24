@@ -11,6 +11,7 @@ on:
 
 permissions:
   id-token: write # OIDC → AWS
+  contents: read # explicit: a permissions block strips the defaults
 
 concurrency: deploy
 
