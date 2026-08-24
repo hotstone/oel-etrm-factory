@@ -28,27 +28,11 @@ PR link, or a truncated failure message — no silent deaths.
 
 ## Security model
 
-- **Split roles**: Claude Code sessions (runtime and CodeBuild) run under the assumed
-  `etrm-agent-bedrock-only` role — Bedrock invoke and nothing else — with the container
-  role's credential source stripped from their env. The executor role has no Bedrock
-  permissions; the runtime role keeps them for in-process Strands agents.
-- **Credential-less workspaces**: git remotes are scrubbed after clone; the GitHub PAT
-  lives only in unexported shell vars / prefix assignments; deterministic harness steps
-  push, and only to `agent/*` branches.
-- **Human gate**: pipeline ends at a PR; never auto-merge. (Branch protection unavailable
-  on GitHub Free private repos — the controls above are the compensating mechanism for
-  the agent side; the human side is procedural.)
-- **Untrusted input handling**: ticket text/comments are the system's only untrusted
-  input and are treated as data, not instructions — deterministic harness code wraps them
-  in delimiters (embedded delimiter look-alikes stripped first; `src/runtime/src/untrusted.ts`)
-  with a standing ignore-embedded-instructions notice; the analyzer carries an
-  `injectionSuspected` tripwire that routes to a human-security-review block; the reviewer
-  treats security-weakening changes as [blocking] even when the plan calls for them.
-  Internal agents share the ticket as their instruction source, so a consistent poisoning
-  passes internal gates — the two human gates (`agent-ready` labelling and PR review) are
-  the uncorrelated checks and are security controls, not formalities.
-- Secrets in Secrets Manager: `prod/linear/apikey` (JSON, key `api-key`),
-  `prod/github/pat` (plain), `prod/linear/webhook-secret`.
+Full specification: `docs/specs/security.md`. Essentials: Claude Code sessions run under
+the bedrock-only assumed role with ambient creds stripped; workspaces are credential-less
+(only harness steps push, to `agent/*` only); ticket content is delimited as untrusted
+data with an analyzer injection tripwire; one fresh `runtimeSessionId` per run is the
+isolation boundary; the pipeline ends at a human-reviewed PR — never auto-merge.
 
 ## Operational controls
 
