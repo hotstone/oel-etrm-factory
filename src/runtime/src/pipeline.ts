@@ -22,7 +22,7 @@ import { runExecutorBuild, type ExecutorRun } from "./codebuild.js";
 import { CONFIG } from "./config.js";
 import { CuratorSchema, curatorPrompt, makeCurator } from "./curator.js";
 import { parseFindings, persistFindings, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
-import { commentOnPr, fetchPrDiff, fetchPrFiles } from "./github.js";
+import { commentOnPr, fetchPrDiff, fetchPrFiles, submitPrReview } from "./github.js";
 import { lessonsBlock, reinforceLesson, retrieveLessons, writeLesson } from "./memory.js";
 import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
 import { emitRunMetrics, type StageStat } from "./metrics.js";
@@ -334,11 +334,15 @@ ${lessonsBlock(reviewLessons)}`,
         .filter((l) => l.toLowerCase().includes("[blocking]"));
       ctx.reviewFindings = blocking;
       if (blocking.length === 0) {
+        await submitPrReview(target.slug, ctx.executorRun!.prNumber, reviewText, "APPROVE")
+          .catch((err) => console.error(`PR review submission failed (${target.slug}#${ctx.executorRun!.prNumber}):`, err));
         await persistAll(ctx.revisionRuns > 0 ? "revised-then-clean" : "clean");
         return { summary: "clean", usage: usageOf(inTok, outTok) };
       }
       if (ctx.revisionRuns >= CONFIG.limits.reviewIterations) {
         // Cap hit: surface the findings on the PR for the human reviewer.
+        await submitPrReview(target.slug, ctx.executorRun!.prNumber, reviewText, "REQUEST_CHANGES")
+          .catch((err) => console.error(`PR review submission failed (${target.slug}#${ctx.executorRun!.prNumber}):`, err));
         await commentOnPr(
           target.slug,
           ctx.executorRun!.prNumber,
@@ -372,6 +376,8 @@ ${ctx.plan!}`,
       if (ctx.executorRun.agentResult === "no-changes") {
         // Implementer investigated and disagrees with the review — a judgment
         // call for the human, not a failure.
+        await submitPrReview(target.slug, ctx.executorRun.prNumber, reviewText, "COMMENT")
+          .catch((err) => console.error(`PR review submission failed (${target.slug}#${ctx.executorRun!.prNumber}):`, err));
         await commentOnPr(
           target.slug,
           ctx.executorRun.prNumber,

@@ -57,6 +57,12 @@ the bedrock-only assumed role with ambient creds stripped; workspaces are creden
 data with an analyzer injection tripwire; one fresh `runtimeSessionId` per run is the
 isolation boundary; the pipeline ends at a human-reviewed PR — never auto-merge.
 
+**PAT scope requirement.** `prod/github/pat` must hold `Pull requests: read/write` —
+required for the reviews endpoint (`POST /repos/{owner}/{repo}/pulls/{number}/reviews`)
+used to submit formal APPROVE / REQUEST_CHANGES reviews. If the scope is missing the
+GitHub API returns 403; this is logged to stderr (→ CloudWatch Logs) but is non-blocking
+— the pipeline still completes and the PR is still created.
+
 ## Operational controls
 
 - **Budget**: per-run LLM token cap (`maxRunTokens`) aborts before plan revisions and

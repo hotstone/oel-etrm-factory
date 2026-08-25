@@ -31,6 +31,19 @@ export async function fetchPrFiles(slug: string, prNumber: string): Promise<stri
   return files.map((f) => f.filename);
 }
 
+/** Submit a formal PR review (requires PAT scope `Pull requests: read/write`). */
+export async function submitPrReview(
+  slug: string,
+  prNumber: string,
+  body: string,
+  event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT",
+): Promise<void> {
+  await gh(slug, `/pulls/${prNumber}/reviews`, {
+    method: "POST",
+    body: JSON.stringify({ body, event }),
+  });
+}
+
 /** Close a PR and delete its branch (eval cleanup). */
 export async function closePrAndBranch(slug: string, prNumber: string, branch: string): Promise<void> {
   await gh(slug, `/pulls/${prNumber}`, { method: "PATCH", body: JSON.stringify({ state: "closed" }) });
