@@ -118,6 +118,14 @@
       "Effect": "Allow",
       "Action": "dynamodb:PutItem",
       "Resource": "arn:aws:dynamodb:ap-southeast-2:007460876082:table/etrm-factory-runs"
+    },
+    {
+      "Sid": "ExecutorBuildLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:GetLogEvents"
+      ],
+      "Resource": "arn:aws:logs:ap-southeast-2:007460876082:log-group:/aws/codebuild/claude-code-executor:log-stream:*"
     }
   ]
 }
