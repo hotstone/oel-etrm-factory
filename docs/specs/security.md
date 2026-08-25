@@ -24,9 +24,14 @@ Controls in place today, and the boundaries they rely on. Deferred items live in
 | Runtime role | Bedrock, CodeBuild start/poll, secrets, S3, DynamoDB, memory store, assume bedrock-only | — (the trusted orchestrator) |
 | Trigger Lambda role | Webhook secret, invoke runtime, idempotency-table put | Everything else |
 
-- **Credential-less workspaces**: git remotes scrubbed after clone; the PAT exists only
-  in unexported shell vars / prefix assignments; deterministic harness steps push, and
-  only to `agent/*` branches.
+- **Credential-less workspaces**: the runtime clone passes the PAT through a git credential
+  helper reading the environment, so it never enters argv (readable via `ps`), the remote
+  URL, or `.git/config`; in CodeBuild the PAT exists only in unexported shell vars / prefix
+  assignments. Deterministic harness steps push, and only to `agent/*` branches.
+- **Failure paths are redacted**: `redactSecrets` (`workspace.ts`) strips token shapes and
+  URL userinfo from stage errors before they reach a Linear comment, a metric, or a log.
+  Child-process errors quote the failing command, so a credential in argv lands in
+  CloudWatch verbatim — this happened once, on a 403 clone during dogfooding setup.
 - GitHub PAT is fine-grained: one repo, Contents + Pull requests, no admin. Secrets in
   Secrets Manager (`prod/linear/apikey` JSON-wrapped, `prod/github/pat` plain,
   `prod/linear/webhook-secret`). IAM policies are checked-in JSON (`infra/iam/`), never
@@ -40,7 +45,11 @@ Controls in place today, and the boundaries they rely on. Deferred items live in
   (`$HOME/.claude`) dies with the run because of this invariant.
 - CodeBuild: fresh container per build.
 - Lessons memory: namespace per target repo (config-enforced; see tenancy note below).
-- Webhook idempotency: DynamoDB conditional claim — one delivery per issue wins.
+- Webhook idempotency: DynamoDB conditional claim — one delivery per issue wins while the
+  claim is live. Linear emits several events per label mutation, so the claim is compared
+  against `expiresAt` (not the lazily-deleted `ttl`), and a finished run shortens it to a
+  grace window rather than deleting it: the event burst is absorbed, but a human who
+  answers a blocked ticket can re-label it without waiting out the full window.
 
 ## Untrusted input and prompt injection
 
@@ -91,6 +100,10 @@ The pipeline can deliver tickets against its own repository. Two controls bound 
   buildspec (build fails before any push) and as a blocking reviewer rule.
 - **Deploys stay manual.** A merged self-change does not reach production until a human
   runs the deploy workflow, so a bad self-edit cannot self-propagate.
+
+The PAT's repository selection is the gate on which repos the pipeline can touch at all: a
+repo absent from it fails at clone (GitHub returns 404, not 403, for a fine-grained token's
+unselected repos). Keep the selection to exactly the targets in `targets.ts`.
 
 Residual: `GithubDeployerRole` (used by the Actions workflows) carries
 `AdministratorAccess`, so anything able to add or edit a workflow in this repo could reach

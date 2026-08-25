@@ -8,6 +8,12 @@ export const CONFIG = {
     light: "au.anthropic.claude-haiku-4-5-20251001-v1:0",
   },
   repo: "hotstone/oel-factory-testproject",
+  // Webhook idempotency claims (one live run per issue); released on terminal outcome.
+  runsTable: "etrm-factory-runs",
+  // Grace window left on a claim after a run ends: long enough to absorb the
+  // burst of webhook events Linear sends per label mutation, short enough that
+  // a human retry is not blocked.
+  runClaimGraceSeconds: 180,
   memory: {
     // AgentCore Memory store for the lessons loop (created by infra/scripts/create-memory.sh).
     memoryId: "etrm_factory_lessons-Zv1mYYATxG",

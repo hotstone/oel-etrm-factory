@@ -23,6 +23,32 @@ export function resolveReview(
   return revisionRuns > 0 ? "revised-then-clean" : "clean";
 }
 
+/**
+ * Shorten the webhook idempotency claim once a run reaches a terminal state.
+ *
+ * The claim is not deleted: Linear emits several events per label mutation, and
+ * a fast-failing run would otherwise let the rest of that burst start duplicate
+ * runs. Collapsing the claim to a short grace window absorbs the burst while
+ * letting a human answer a blocked ticket and re-label it without waiting out
+ * the full 2h window.
+ */
+export async function releaseRunClaim(issueId: string): Promise<void> {
+  const nowSec = Math.floor(Date.now() / 1000);
+  await dynamo
+    .send(
+      new PutItemCommand({
+        TableName: CONFIG.runsTable,
+        Item: {
+          issueId: { S: issueId },
+          claimedAt: { S: new Date().toISOString() },
+          expiresAt: { N: String(nowSec + CONFIG.runClaimGraceSeconds) },
+          ttl: { N: String(nowSec + 3600) },
+        },
+      }),
+    )
+    .catch((err) => console.error(`claim release failed (${issueId}):`, err));
+}
+
 /** Parse the reviewer's findings-only markdown into structured findings. */
 export function parseFindings(reviewText: string): Finding[] {
   const findings: Finding[] = [];

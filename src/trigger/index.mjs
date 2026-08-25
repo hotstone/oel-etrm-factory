@@ -49,9 +49,17 @@ export async function handler(event) {
 
   const issueId = payload.data.identifier;
 
-  // Idempotency claim: Linear redelivers webhooks, and the agent-in-progress
-  // label guard has a seconds-wide race window. A conditional write makes
-  // exactly one delivery win per issue per 2h window.
+  // Idempotency claim: Linear sends several events per label mutation and
+  // redelivers on failure, and the agent-in-progress label guard has a
+  // seconds-wide race window. A conditional write makes exactly one delivery
+  // win per issue while a claim is live.
+  //
+  // The claim is compared against expiresAt rather than relying on the ttl
+  // attribute: DynamoDB TTL deletion is lazy (hours late), so an expired claim
+  // must still be takeable. The runtime shortens expiresAt when a run reaches a
+  // terminal state, so answering a blocked ticket and re-labelling it starts a
+  // new run in minutes instead of waiting out the full window.
+  const nowSec = Math.floor(Date.now() / 1000);
   try {
     await dynamo.send(
       new PutItemCommand({
@@ -59,9 +67,15 @@ export async function handler(event) {
         Item: {
           issueId: { S: issueId },
           claimedAt: { S: new Date().toISOString() },
-          ttl: { N: String(Math.floor(Date.now() / 1000) + 2 * 3600) },
+          expiresAt: { N: String(nowSec + 2 * 3600) },
+          ttl: { N: String(nowSec + 2 * 3600) },
         },
-        ConditionExpression: "attribute_not_exists(issueId)",
+        // attribute_not_exists(#e) makes any claim written before this format
+        // self-healing rather than permanently stuck.
+        ConditionExpression:
+          "attribute_not_exists(issueId) OR attribute_not_exists(#e) OR #e < :now",
+        ExpressionAttributeNames: { "#e": "expiresAt" },
+        ExpressionAttributeValues: { ":now": { N: String(nowSec) } },
       }),
     );
   } catch (err) {

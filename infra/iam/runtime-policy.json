@@ -112,6 +112,12 @@
         "bedrock-agentcore:GetWorkloadAccessTokenForUserId"
       ],
       "Resource": "arn:aws:bedrock-agentcore:ap-southeast-2:007460876082:*"
+    },
+    {
+      "Sid": "IdempotencyRelease",
+      "Effect": "Allow",
+      "Action": "dynamodb:PutItem",
+      "Resource": "arn:aws:dynamodb:ap-southeast-2:007460876082:table/etrm-factory-runs"
     }
   ]
 }

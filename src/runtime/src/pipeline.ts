@@ -21,7 +21,7 @@ import { COMMENT_PREFIX } from "./comments.js";
 import { runExecutorBuild, type ExecutorRun } from "./codebuild.js";
 import { CONFIG } from "./config.js";
 import { CuratorSchema, curatorPrompt, makeCurator } from "./curator.js";
-import { parseFindings, persistCritiques, persistFindings, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
+import { parseFindings, persistCritiques, persistFindings, releaseRunClaim, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
 import { commentOnPr, fetchPrDiff, fetchPrFiles, submitPrReview } from "./github.js";
 import { lessonsBlock, reinforceLesson, retrieveLessons, writeLesson } from "./memory.js";
 import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
@@ -29,7 +29,7 @@ import { emitRunMetrics, type StageStat } from "./metrics.js";
 import { protectedViolations, resolveTarget } from "./targets.js";
 import { withSpan } from "./telemetry.js";
 import { UNTRUSTED_NOTICE, wrapUntrusted } from "./untrusted.js";
-import { cloneWorkspace, removeWorkspace } from "./workspace.js";
+import { cloneWorkspace, redactSecrets, removeWorkspace } from "./workspace.js";
 
 /**
  * Mutable per-run context shared across nodes via closure. The graph provides
@@ -508,7 +508,9 @@ ${ctx.plan!}`,
     emitRunMetrics({ issue: issue.identifier, outcome: "completed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, prUrl: outcome.prUrl, detail: outcome.detail });
     return outcome;
   } catch (err) {
-    const message = (err instanceof Error ? err.message : String(err)).slice(0, 600);
+    // Redact before this reaches a Linear comment, a metric, or a log line:
+    // stage errors can quote commands that carried credentials.
+    const message = redactSecrets(err instanceof Error ? err.message : String(err)).slice(0, 600);
     await commentOnIssue(issue.id, `${COMMENT_PREFIX.failed} ${message}`).catch(() => {});
     await setAgentLabel(issue.id, "agentBlocked").catch(() => {});
     emitRunMetrics({ issue: issue.identifier, outcome: "failed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, detail: message });
@@ -516,6 +518,9 @@ ${ctx.plan!}`,
   } finally {
     await persistCritiques({ issueId: issue.identifier, critiques: ctx.critiques, repo: target.slug })
       .catch((err) => console.error(`critique persistence failed (${issue.identifier}):`, err));
+    // Terminal state: shorten the idempotency claim so a re-labelled ticket can
+    // run again without waiting out the TTL.
+    await releaseRunClaim(issue.identifier).catch(() => {});
     if (ctx.workspace) await removeWorkspace(ctx.workspace).catch(() => {});
   }
 }
