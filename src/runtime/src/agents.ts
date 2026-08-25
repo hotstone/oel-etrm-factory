@@ -1,7 +1,7 @@
 import { Agent, BedrockModel } from "@strands-agents/sdk";
 import { z } from "zod";
 import { CONFIG } from "./config.js";
-import type { LinearIssue } from "./linear.js";
+import type { TicketIssue } from "./types.js";
 import { isPipelineComment } from "./comments.js";
 import { UNTRUSTED_NOTICE, wrapUntrusted } from "./untrusted.js";
 
@@ -83,7 +83,7 @@ do not invent objections.`,
   });
 }
 
-export function analyzerPrompt(issue: LinearIssue): string {
+export function analyzerPrompt(issue: TicketIssue): string {
   // The pipeline's own status comments (and eval markers) accumulate on retried
   // tickets; they read as agent-directed instructions and would trip the
   // injection tripwire. Only human comments are requirements input.

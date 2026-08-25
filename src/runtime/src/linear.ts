@@ -1,15 +1,12 @@
 import { CONFIG } from "./config.js";
 import { linearApiKey } from "./secrets.js";
+import type { AgentState, TicketIssue } from "./types.js";
 
-export interface LinearIssue {
-  id: string;
-  identifier: string;
-  title: string;
-  description: string;
-  url: string;
-  labelIds: string[];
-  comments: { body: string; author: string }[];
-}
+export type { TicketIssue } from "./types.js";
+export type { AgentState } from "./types.js";
+
+/** @deprecated Use TicketIssue — kept as an alias for migration. */
+export type LinearIssue = TicketIssue;
 
 /**
  * Linear occasionally emits raw control characters inside JSON string values
@@ -44,7 +41,7 @@ async function gql<T>(query: string, variables: Record<string, unknown>): Promis
 }
 
 /** Fetch an issue by identifier (e.g. "HOT-50") or UUID. */
-export async function fetchIssue(idOrIdentifier: string): Promise<LinearIssue> {
+export async function fetchIssue(idOrIdentifier: string): Promise<TicketIssue> {
   const data = await gql<{
     issue: {
       id: string;
@@ -115,4 +112,12 @@ export async function setAgentLabel(
     `mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
     { id: issueId, input: { labelIds: kept } },
   );
+}
+
+/**
+ * Transition the agent lifecycle state on a ticket. Removes all agent-state
+ * labels and applies the one matching the given state (or none if null).
+ */
+export async function setAgentState(issueId: string, state: AgentState): Promise<void> {
+  return setAgentLabel(issueId, state);
 }
