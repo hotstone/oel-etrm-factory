@@ -21,8 +21,8 @@ import { COMMENT_PREFIX } from "./comments.js";
 import { runExecutorBuild, type ExecutorRun } from "./codebuild.js";
 import { CONFIG } from "./config.js";
 import { CuratorSchema, curatorPrompt, makeCurator } from "./curator.js";
-import { parseFindings, persistFindings, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
-import { commentOnPr, fetchPrDiff, fetchPrFiles } from "./github.js";
+import { parseFindings, persistCritiques, persistFindings, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
+import { commentOnPr, fetchPrDiff, fetchPrFiles, submitPrReview } from "./github.js";
 import { lessonsBlock, reinforceLesson, retrieveLessons, writeLesson } from "./memory.js";
 import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
 import { emitRunMetrics, type StageStat } from "./metrics.js";
@@ -307,6 +307,11 @@ ${lessonsBlock(reviewLessons)}`,
         if (!phase2.text.includes("No findings.")) reviewText = `${review.text}\n${phase2.text}`;
       }
 
+      // Post this pass's review verbatim to the PR — every pass, including ones
+      // that trigger a revision, so the full trail is on the PR. Best-effort.
+      await submitPrReview(target.slug, ctx.executorRun!.prNumber, reviewText)
+        .catch((err) => console.error(`PR review submission failed (${target.slug}#${ctx.executorRun!.prNumber}):`, err));
+
       const passFindings = parseFindings(reviewText);
       const prFiles = await fetchPrFiles(target.slug, ctx.executorRun!.prNumber).catch(() => []);
       ctx.reviewPasses.push({
@@ -509,6 +514,8 @@ ${ctx.plan!}`,
     emitRunMetrics({ issue: issue.identifier, outcome: "failed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, detail: message });
     return { status: "failed", issue: issue.identifier, detail: message };
   } finally {
+    await persistCritiques({ issueId: issue.identifier, critiques: ctx.critiques, repo: target.slug })
+      .catch((err) => console.error(`critique persistence failed (${issue.identifier}):`, err));
     if (ctx.workspace) await removeWorkspace(ctx.workspace).catch(() => {});
   }
 }

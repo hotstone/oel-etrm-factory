@@ -31,6 +31,22 @@ export async function fetchPrFiles(slug: string, prNumber: string): Promise<stri
   return files.map((f) => f.filename);
 }
 
+/**
+ * Submit a PR review (requires PAT scope `Pull requests: read/write`).
+ *
+ * The event is always COMMENT, deliberately not a parameter: a bot APPROVE
+ * would satisfy branch-protection review requirements (merging without genuine
+ * human review), and a bot REQUEST_CHANGES blocks the PR until the bot
+ * dismisses its own review. Both break the human-gate invariant — the pipeline
+ * ends at a human-reviewed PR.
+ */
+export async function submitPrReview(slug: string, prNumber: string, body: string): Promise<void> {
+  await gh(slug, `/pulls/${prNumber}/reviews`, {
+    method: "POST",
+    body: JSON.stringify({ body, event: "COMMENT" }),
+  });
+}
+
 /** Close a PR and delete its branch (eval cleanup). */
 export async function closePrAndBranch(slug: string, prNumber: string, branch: string): Promise<void> {
   await gh(slug, `/pulls/${prNumber}`, { method: "PATCH", body: JSON.stringify({ state: "closed" }) });
