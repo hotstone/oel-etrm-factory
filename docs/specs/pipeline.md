@@ -40,6 +40,35 @@ guides — auto-loaded by Claude Code): test commands, CI expectations, conventi
 pipeline defines no per-project CI; a target repo that documents its checks gets them
 honored per-project. (Decision 2026-08-24.)
 
+## Ticket abstraction (`TicketIssue`)
+
+The pipeline operates on `TicketIssue` (`src/runtime/src/types.ts`), a provider-neutral
+ticket interface. It is structurally identical to `LinearIssue` — same field names and
+types, no mapping logic needed.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | `string` | Provider-internal unique ID (UUID for Linear) |
+| `identifier` | `string` | Human-readable key (e.g. `HOT-50`) |
+| `title` | `string` | Ticket summary |
+| `description` | `string` | Full body (markdown) |
+| `url` | `string` | Web URL to view the ticket |
+| `labelIds` | `string[]` | Provider label/tag IDs attached to the ticket |
+| `comments` | `{body: string; author: string}[]` | Discussion thread entries |
+
+### Agent state transitions (`setAgentState`)
+
+`setAgentState(issueId, state)` transitions the agent lifecycle state on a ticket.
+The `AgentState` union values intentionally match `keyof typeof CONFIG.linear.labels`,
+so the implementation is `CONFIG.linear.labels[state]`.
+
+| State | Labels removed | Label added | Semantic |
+|---|---|---|---|
+| `"agentReady"` | all agent-\* | `agent-ready` | Ticket queued for pickup |
+| `"agentInProgress"` | all agent-\* | `agent-in-progress` | Agent working |
+| `"agentBlocked"` | all agent-\* | `agent-blocked` | Needs human attention |
+| `null` | all agent-\* | (none) | Run complete, clear state |
+
 ## Trigger and feedback
 
 Linear webhook (team-scoped) → Lambda `etrm-factory-trigger`: HMAC verify → fire only on

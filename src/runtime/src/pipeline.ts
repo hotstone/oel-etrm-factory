@@ -24,7 +24,7 @@ import { CuratorSchema, curatorPrompt, makeCurator } from "./curator.js";
 import { parseFindings, persistCritiques, persistFindings, releaseRunClaim, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
 import { commentOnPr, fetchPrDiff, fetchPrFiles, submitPrReview } from "./github.js";
 import { lessonsBlock, reinforceLesson, retrieveLessons, writeLesson } from "./memory.js";
-import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
+import { commentOnIssue, fetchIssue, setAgentState, type TicketIssue } from "./linear.js";
 import { emitRunMetrics, type StageStat } from "./metrics.js";
 import { protectedViolations, resolveTarget } from "./targets.js";
 import { withSpan } from "./telemetry.js";
@@ -44,7 +44,7 @@ class BudgetExceededError extends Error {}
 
 interface RunContext {
   tokensUsed: number;
-  issue: LinearIssue;
+  issue: TicketIssue;
   workspace?: string;
   assessment?: Assessment;
   plan?: string;
@@ -464,7 +464,7 @@ ${ctx.plan!}`,
     timeout: CONFIG.limits.graphTimeoutMs,
   });
 
-  await setAgentLabel(issue.id, "agentInProgress");
+  await setAgentState(issue.id, "agentInProgress");
   try {
     const result = await graph.invoke(`Deliver ticket ${issue.identifier}`);
     stages = stagesFrom(result.results);
@@ -475,7 +475,7 @@ ${ctx.plan!}`,
         ? `${COMMENT_PREFIX.securityBlocked} The ticket contains content that looks like an attempt to manipulate the automated pipeline: ${ctx.assessment.injectionReason ?? "(no detail)"}. A human should review this ticket before it is re-labelled.`
         : `${COMMENT_PREFIX.blocked} The ticket needs clarification before automated implementation:\n\n${questions || "- The request is too vague to derive testable acceptance criteria."}\n\nAnswer above and re-apply the \`agent-ready\` label to retry.`;
       await commentOnIssue(issue.id, body);
-      await setAgentLabel(issue.id, "agentBlocked");
+      await setAgentState(issue.id, "agentBlocked");
       const outcome: PipelineOutcome = {
         status: "blocked",
         issue: issue.identifier,
@@ -498,7 +498,7 @@ ${ctx.plan!}`,
       issue.id,
       `${COMMENT_PREFIX.prReady} ${ctx.executorRun.prUrl}${findingsNote}`,
     );
-    await setAgentLabel(issue.id, null);
+    await setAgentState(issue.id, null);
     const outcome: PipelineOutcome = {
       status: "completed",
       issue: issue.identifier,
@@ -512,7 +512,7 @@ ${ctx.plan!}`,
     // stage errors can quote commands that carried credentials.
     const message = redactSecrets(err instanceof Error ? err.message : String(err)).slice(0, 600);
     await commentOnIssue(issue.id, `${COMMENT_PREFIX.failed} ${message}`).catch(() => {});
-    await setAgentLabel(issue.id, "agentBlocked").catch(() => {});
+    await setAgentState(issue.id, "agentBlocked").catch(() => {});
     emitRunMetrics({ issue: issue.identifier, outcome: "failed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, detail: message });
     return { status: "failed", issue: issue.identifier, detail: message };
   } finally {
