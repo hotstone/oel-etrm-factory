@@ -13,6 +13,16 @@ of these deliberately.
 - [ ] **Fine-grained PAT** scoped to exactly this repo: Contents R/W, Pull requests R/W,
   Metadata R. No admin. Store via `aws secretsmanager put-secret-value` with `$(pbpaste)`
   (never through a chat or shell-history literal). Update `prod/github/pat`.
+- [ ] **Sort out GitHub integration properly** (noted 2026-08-25, when the dogfooding PAT
+  turned out not to cover the pipeline's own repo). The PAT model is fragile: tokens are
+  tied to one human account, expire silently, must be manually rotated through Secrets
+  Manager, and every new target repo means editing the token's repo selection by hand —
+  a scope mistake either blocks the pipeline (404/403 at clone) or over-grants. The
+  proper fix is a **GitHub App** installed per target repo: short-lived installation
+  tokens minted at run time (nothing long-lived to leak or rotate), per-repo install as
+  the access gate, org-owned rather than person-owned, and PRs attributed to the app
+  instead of a human's token. Until then the PAT's repository selection must be kept in
+  lockstep with `src/runtime/src/targets.ts`.
 - [ ] Repo has: one-command test suite green on `main`, a `CLAUDE.md` (test/build
   commands, conventions, directory guide), PR template (optional).
 
