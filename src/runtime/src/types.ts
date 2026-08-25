@@ -1,4 +1,4 @@
-import type { CONFIG } from "./config.js";
+import { CONFIG } from "./config.js";
 
 /**
  * Provider-neutral ticket representation. Structurally identical to the Linear

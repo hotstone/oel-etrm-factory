@@ -24,9 +24,10 @@ import { CuratorSchema, curatorPrompt, makeCurator } from "./curator.js";
 import { parseFindings, persistCritiques, persistFindings, releaseRunClaim, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
 import { commentOnPr, fetchPrDiff, fetchPrFiles, submitPrReview } from "./github.js";
 import { lessonsBlock, reinforceLesson, retrieveLessons, writeLesson } from "./memory.js";
-import { commentOnIssue, fetchIssue, setAgentState, type TicketIssue } from "./linear.js";
+import { providerFor } from "./ticketing/index.js";
+import type { TicketIssue } from "./types.js";
 import { emitRunMetrics, type StageStat } from "./metrics.js";
-import { protectedViolations, resolveTarget } from "./targets.js";
+import { DEFAULT_TARGET, protectedViolations, resolveTarget } from "./targets.js";
 import { withSpan } from "./telemetry.js";
 import { UNTRUSTED_NOTICE, wrapUntrusted } from "./untrusted.js";
 import { cloneWorkspace, redactSecrets, removeWorkspace } from "./workspace.js";
@@ -113,7 +114,8 @@ function stagesFrom(results: { nodeId: string; duration: number; usage?: { input
 export async function runPipeline(issueIdentifier: string): Promise<PipelineOutcome> {
   const runStart = Date.now();
   let stages: StageStat[] = [];
-  const issue = await fetchIssue(issueIdentifier);
+  const tickets = providerFor(DEFAULT_TARGET);
+  const issue = await tickets.fetchIssue(issueIdentifier);
   const target = resolveTarget(issue.labelIds);
   console.log(`[target] ${issue.identifier} → ${target.slug} (workdir ${target.workdir})`);
   const ctx: RunContext = { tokensUsed: 0, issue, critiques: [], reviewPasses: [], revisionRuns: 0 };
@@ -464,7 +466,7 @@ ${ctx.plan!}`,
     timeout: CONFIG.limits.graphTimeoutMs,
   });
 
-  await setAgentState(issue.id, "agentInProgress");
+  await tickets.setAgentState(issue.id, "agentInProgress");
   try {
     const result = await graph.invoke(`Deliver ticket ${issue.identifier}`);
     stages = stagesFrom(result.results);
@@ -474,8 +476,8 @@ ${ctx.plan!}`,
       const body = ctx.assessment.injectionSuspected
         ? `${COMMENT_PREFIX.securityBlocked} The ticket contains content that looks like an attempt to manipulate the automated pipeline: ${ctx.assessment.injectionReason ?? "(no detail)"}. A human should review this ticket before it is re-labelled.`
         : `${COMMENT_PREFIX.blocked} The ticket needs clarification before automated implementation:\n\n${questions || "- The request is too vague to derive testable acceptance criteria."}\n\nAnswer above and re-apply the \`agent-ready\` label to retry.`;
-      await commentOnIssue(issue.id, body);
-      await setAgentState(issue.id, "agentBlocked");
+      await tickets.postComment(issue.id, body);
+      await tickets.setAgentState(issue.id, "agentBlocked");
       const outcome: PipelineOutcome = {
         status: "blocked",
         issue: issue.identifier,
@@ -494,11 +496,11 @@ ${ctx.plan!}`,
     const findingsNote = ctx.reviewFindings?.length
       ? ` Review left ${ctx.reviewFindings.length} unresolved finding(s) — see PR comments.`
       : " Agent review found no blocking issues.";
-    await commentOnIssue(
+    await tickets.postComment(
       issue.id,
       `${COMMENT_PREFIX.prReady} ${ctx.executorRun.prUrl}${findingsNote}`,
     );
-    await setAgentState(issue.id, null);
+    await tickets.setAgentState(issue.id, null);
     const outcome: PipelineOutcome = {
       status: "completed",
       issue: issue.identifier,
@@ -511,8 +513,8 @@ ${ctx.plan!}`,
     // Redact before this reaches a Linear comment, a metric, or a log line:
     // stage errors can quote commands that carried credentials.
     const message = redactSecrets(err instanceof Error ? err.message : String(err)).slice(0, 600);
-    await commentOnIssue(issue.id, `${COMMENT_PREFIX.failed} ${message}`).catch(() => {});
-    await setAgentState(issue.id, "agentBlocked").catch(() => {});
+    await tickets.postComment(issue.id, `${COMMENT_PREFIX.failed} ${message}`).catch(() => {});
+    await tickets.setAgentState(issue.id, "agentBlocked").catch(() => {});
     emitRunMetrics({ issue: issue.identifier, outcome: "failed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, detail: message });
     return { status: "failed", issue: issue.identifier, detail: message };
   } finally {
