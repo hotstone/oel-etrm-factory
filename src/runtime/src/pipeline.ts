@@ -307,6 +307,11 @@ ${lessonsBlock(reviewLessons)}`,
         if (!phase2.text.includes("No findings.")) reviewText = `${review.text}\n${phase2.text}`;
       }
 
+      // Post this pass's review verbatim to the PR — every pass, including ones
+      // that trigger a revision, so the full trail is on the PR. Best-effort.
+      await submitPrReview(target.slug, ctx.executorRun!.prNumber, reviewText)
+        .catch((err) => console.error(`PR review submission failed (${target.slug}#${ctx.executorRun!.prNumber}):`, err));
+
       const passFindings = parseFindings(reviewText);
       const prFiles = await fetchPrFiles(target.slug, ctx.executorRun!.prNumber).catch(() => []);
       ctx.reviewPasses.push({
@@ -334,15 +339,11 @@ ${lessonsBlock(reviewLessons)}`,
         .filter((l) => l.toLowerCase().includes("[blocking]"));
       ctx.reviewFindings = blocking;
       if (blocking.length === 0) {
-        await submitPrReview(target.slug, ctx.executorRun!.prNumber, reviewText, "APPROVE")
-          .catch((err) => console.error(`PR review submission failed (${target.slug}#${ctx.executorRun!.prNumber}):`, err));
         await persistAll(ctx.revisionRuns > 0 ? "revised-then-clean" : "clean");
         return { summary: "clean", usage: usageOf(inTok, outTok) };
       }
       if (ctx.revisionRuns >= CONFIG.limits.reviewIterations) {
         // Cap hit: surface the findings on the PR for the human reviewer.
-        await submitPrReview(target.slug, ctx.executorRun!.prNumber, reviewText, "REQUEST_CHANGES")
-          .catch((err) => console.error(`PR review submission failed (${target.slug}#${ctx.executorRun!.prNumber}):`, err));
         await commentOnPr(
           target.slug,
           ctx.executorRun!.prNumber,
@@ -376,8 +377,6 @@ ${ctx.plan!}`,
       if (ctx.executorRun.agentResult === "no-changes") {
         // Implementer investigated and disagrees with the review — a judgment
         // call for the human, not a failure.
-        await submitPrReview(target.slug, ctx.executorRun.prNumber, reviewText, "COMMENT")
-          .catch((err) => console.error(`PR review submission failed (${target.slug}#${ctx.executorRun!.prNumber}):`, err));
         await commentOnPr(
           target.slug,
           ctx.executorRun.prNumber,
@@ -515,7 +514,8 @@ ${ctx.plan!}`,
     emitRunMetrics({ issue: issue.identifier, outcome: "failed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, detail: message });
     return { status: "failed", issue: issue.identifier, detail: message };
   } finally {
-    await persistCritiques({ issueId: issue.identifier, critiques: ctx.critiques, repo: target.slug }).catch(() => {});
+    await persistCritiques({ issueId: issue.identifier, critiques: ctx.critiques, repo: target.slug })
+      .catch((err) => console.error(`critique persistence failed (${issue.identifier}):`, err));
     if (ctx.workspace) await removeWorkspace(ctx.workspace).catch(() => {});
   }
 }

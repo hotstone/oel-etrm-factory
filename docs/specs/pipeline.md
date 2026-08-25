@@ -57,11 +57,20 @@ the bedrock-only assumed role with ambient creds stripped; workspaces are creden
 data with an analyzer injection tripwire; one fresh `runtimeSessionId` per run is the
 isolation boundary; the pipeline ends at a human-reviewed PR — never auto-merge.
 
-**PAT scope requirement.** `prod/github/pat` must hold `Pull requests: read/write` —
-required for the reviews endpoint (`POST /repos/{owner}/{repo}/pulls/{number}/reviews`)
-used to submit formal APPROVE / REQUEST_CHANGES reviews. If the scope is missing the
-GitHub API returns 403; this is logged to stderr (→ CloudWatch Logs) but is non-blocking
-— the pipeline still completes and the PR is still created.
+**Review trail on the PR.** Every review pass — including intermediate passes that
+trigger a revision — is posted verbatim to the pull request as a PR review, so the full
+review history is visible where the human merges. The event is always `COMMENT`, enforced
+in `github.ts` (not a parameter): a bot APPROVE would satisfy branch-protection review
+requirements and undermine the human gate, and a bot REQUEST_CHANGES would block the PR
+on bot state. Posting requires PAT scope `Pull requests: read/write`; a GitHub failure
+(e.g. 403 on missing scope) is logged to stderr (→ CloudWatch Logs) but is non-blocking —
+the pipeline still completes and the PR is still created.
+
+**Adversary critique storage.** Each plan⇄adversary iteration's critique (objections
+with severity, and the approved flag) is persisted on every run exit — success, blocked,
+and failure alike — to the DynamoDB `etrm-factory-findings` table as records with
+`record_type=adversary_critique`, distinguishable from review findings. Persistence is
+best-effort and never fails the run.
 
 ## Operational controls
 
