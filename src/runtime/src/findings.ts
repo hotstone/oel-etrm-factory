@@ -1,5 +1,6 @@
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { CONFIG } from "./config.js";
+import type { Critique } from "./agents.js";
 
 const dynamo = new DynamoDBClient({ region: CONFIG.region });
 
@@ -37,6 +38,64 @@ export function parseFindings(reviewText: string): Finding[] {
     });
   }
   return findings;
+}
+
+/** Transform a critique into DynamoDB item attributes. */
+export function critiqueToRecord(input: {
+  issueId: string;
+  iteration: number;
+  critique: Critique;
+  repo: string;
+  recordedAt: string;
+}): Record<string, { S: string } | { N: string } | { BOOL: boolean } | { L: { M: Record<string, { S: string }> }[] }> {
+  return {
+    issueId: { S: input.issueId },
+    findingKey: { S: `critique#${input.recordedAt}#${input.iteration}` },
+    record_type: { S: "adversary_critique" },
+    recordedAt: { S: input.recordedAt },
+    iteration: { N: String(input.iteration) },
+    approved: { BOOL: input.critique.approved },
+    objections: {
+      L: input.critique.objections.map((o) => ({
+        M: {
+          severity: { S: o.severity },
+          objection: { S: o.objection },
+        },
+      })),
+    },
+    repo: { S: input.repo },
+  };
+}
+
+/**
+ * Persist adversary critiques to DynamoDB. Best-effort: persistence failures
+ * must never fail the pipeline.
+ */
+export async function persistCritiques(input: {
+  issueId: string;
+  critiques: Critique[];
+  repo: string;
+}): Promise<void> {
+  if (input.critiques.length === 0) return;
+  const recordedAt = new Date().toISOString();
+  await Promise.all(
+    input.critiques.map((critique, i) =>
+      dynamo
+        .send(
+          new PutItemCommand({
+            TableName: CONFIG.memory.findingsTable,
+            Item: critiqueToRecord({
+              issueId: input.issueId,
+              iteration: i,
+              critique,
+              repo: input.repo,
+              recordedAt,
+            }),
+          }),
+        )
+        .catch((err) => console.error(`critique persistence failed (${input.issueId}):`, err)),
+    ),
+  );
 }
 
 /**

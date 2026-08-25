@@ -21,7 +21,7 @@ import { COMMENT_PREFIX } from "./comments.js";
 import { runExecutorBuild, type ExecutorRun } from "./codebuild.js";
 import { CONFIG } from "./config.js";
 import { CuratorSchema, curatorPrompt, makeCurator } from "./curator.js";
-import { parseFindings, persistFindings, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
+import { parseFindings, persistCritiques, persistFindings, resolveReview, type Finding, type ReviewResolution } from "./findings.js";
 import { commentOnPr, fetchPrDiff, fetchPrFiles, submitPrReview } from "./github.js";
 import { lessonsBlock, reinforceLesson, retrieveLessons, writeLesson } from "./memory.js";
 import { commentOnIssue, fetchIssue, setAgentLabel, type LinearIssue } from "./linear.js";
@@ -515,6 +515,7 @@ ${ctx.plan!}`,
     emitRunMetrics({ issue: issue.identifier, outcome: "failed", durationMs: Date.now() - runStart, stages, critiqueIterations: ctx.critiques.length, revisionRuns: ctx.revisionRuns, detail: message });
     return { status: "failed", issue: issue.identifier, detail: message };
   } finally {
+    await persistCritiques({ issueId: issue.identifier, critiques: ctx.critiques, repo: target.slug }).catch(() => {});
     if (ctx.workspace) await removeWorkspace(ctx.workspace).catch(() => {});
   }
 }
