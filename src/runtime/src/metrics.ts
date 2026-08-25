@@ -5,6 +5,9 @@
  * Logs Insights. No SDK, no extra IAM.
  */
 
+import { estimateCostUsd } from "./cost.js";
+export { estimateCostUsd } from "./cost.js";
+
 export interface StageStat {
   stage: string;
   durationMs: number;
@@ -40,6 +43,7 @@ function emf(dimensions: string[][], metrics: { Name: string; Unit: string }[], 
 export function emitRunMetrics(run: RunSummary): void {
   // Run-level metrics, dimensioned by outcome; the summary fields ride along
   // as searchable Logs Insights properties.
+  const EstimatedCostUsd = estimateCostUsd(run.stages);
   emf(
     [["Outcome"]],
     [
@@ -47,6 +51,7 @@ export function emitRunMetrics(run: RunSummary): void {
       { Name: "PipelineDurationMs", Unit: "Milliseconds" },
       { Name: "CritiqueIterations", Unit: "Count" },
       { Name: "RevisionRuns", Unit: "Count" },
+      { Name: "EstimatedCostUsd", Unit: "None" },
     ],
     {
       Outcome: run.outcome,
@@ -54,6 +59,7 @@ export function emitRunMetrics(run: RunSummary): void {
       PipelineDurationMs: run.durationMs,
       CritiqueIterations: run.critiqueIterations,
       RevisionRuns: run.revisionRuns,
+      EstimatedCostUsd,
       summaryType: "pipeline-run",
       issue: run.issue,
       prUrl: run.prUrl ?? null,
