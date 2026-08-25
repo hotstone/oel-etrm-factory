@@ -25,6 +25,30 @@ export interface RunSummary {
 
 const NAMESPACE = "EtrmFactory/Pipeline";
 
+interface TokenRate {
+  input: number;
+  output: number;
+}
+
+const STAGE_TIER: Record<string, TokenRate> = {
+  // Opus 4.6 stages (Claude Code sessions)
+  plan: { input: 15 / 1_000_000, output: 75 / 1_000_000 },
+  review: { input: 15 / 1_000_000, output: 75 / 1_000_000 },
+  // Haiku 4.5 stages (Strands single-call agents)
+  analyze: { input: 0.8 / 1_000_000, output: 4 / 1_000_000 },
+  curate: { input: 0.8 / 1_000_000, output: 4 / 1_000_000 },
+};
+
+export function estimateCostUsd(stages: StageStat[]): number {
+  let cost = 0;
+  for (const s of stages) {
+    const rate = STAGE_TIER[s.stage];
+    if (!rate) continue;
+    cost += (s.inputTokens ?? 0) * rate.input + (s.outputTokens ?? 0) * rate.output;
+  }
+  return Math.round(cost * 1_000_000) / 1_000_000;
+}
+
 function emf(dimensions: string[][], metrics: { Name: string; Unit: string }[], body: Record<string, unknown>): void {
   console.log(
     JSON.stringify({
@@ -40,6 +64,7 @@ function emf(dimensions: string[][], metrics: { Name: string; Unit: string }[], 
 export function emitRunMetrics(run: RunSummary): void {
   // Run-level metrics, dimensioned by outcome; the summary fields ride along
   // as searchable Logs Insights properties.
+  const EstimatedCostUsd = estimateCostUsd(run.stages);
   emf(
     [["Outcome"]],
     [
@@ -47,6 +72,7 @@ export function emitRunMetrics(run: RunSummary): void {
       { Name: "PipelineDurationMs", Unit: "Milliseconds" },
       { Name: "CritiqueIterations", Unit: "Count" },
       { Name: "RevisionRuns", Unit: "Count" },
+      { Name: "EstimatedCostUsd", Unit: "None" },
     ],
     {
       Outcome: run.outcome,
@@ -54,6 +80,7 @@ export function emitRunMetrics(run: RunSummary): void {
       PipelineDurationMs: run.durationMs,
       CritiqueIterations: run.critiqueIterations,
       RevisionRuns: run.revisionRuns,
+      EstimatedCostUsd,
       summaryType: "pipeline-run",
       issue: run.issue,
       prUrl: run.prUrl ?? null,
