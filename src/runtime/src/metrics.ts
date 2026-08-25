@@ -5,6 +5,9 @@
  * Logs Insights. No SDK, no extra IAM.
  */
 
+import { estimateCostUsd } from "./cost.js";
+export { estimateCostUsd } from "./cost.js";
+
 export interface StageStat {
   stage: string;
   durationMs: number;
@@ -24,30 +27,6 @@ export interface RunSummary {
 }
 
 const NAMESPACE = "EtrmFactory/Pipeline";
-
-interface TokenRate {
-  input: number;
-  output: number;
-}
-
-const STAGE_TIER: Record<string, TokenRate> = {
-  // Opus 4.6 stages (Claude Code sessions)
-  plan: { input: 15 / 1_000_000, output: 75 / 1_000_000 },
-  review: { input: 15 / 1_000_000, output: 75 / 1_000_000 },
-  // Haiku 4.5 stages (Strands single-call agents)
-  analyze: { input: 0.8 / 1_000_000, output: 4 / 1_000_000 },
-  curate: { input: 0.8 / 1_000_000, output: 4 / 1_000_000 },
-};
-
-export function estimateCostUsd(stages: StageStat[]): number {
-  let cost = 0;
-  for (const s of stages) {
-    const rate = STAGE_TIER[s.stage];
-    if (!rate) continue;
-    cost += (s.inputTokens ?? 0) * rate.input + (s.outputTokens ?? 0) * rate.output;
-  }
-  return Math.round(cost * 1_000_000) / 1_000_000;
-}
 
 function emf(dimensions: string[][], metrics: { Name: string; Unit: string }[], body: Record<string, unknown>): void {
   console.log(

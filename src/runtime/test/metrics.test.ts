@@ -36,8 +36,8 @@ describe("emitRunMetrics", () => {
       (m: { Name: string }) => m.Name === "EstimatedCostUsd",
     );
     expect(costMetric).toEqual({ Name: "EstimatedCostUsd", Unit: "None" });
-    // analyze: 10 input * 0.8/1M + 5 output * 4/1M = 0.000008 + 0.00002 = 0.000028
-    expect(run.EstimatedCostUsd).toBeCloseTo(0.000028, 6);
+    // analyze: 10 input * 1/1M + 5 output * 5/1M = 0.00001 + 0.000025 = 0.000035
+    expect(run.EstimatedCostUsd).toBeCloseTo(0.000035, 6);
 
     const analyze = JSON.parse(lines[1]!);
     expect(analyze.Stage).toBe("analyze");
@@ -55,10 +55,18 @@ describe("estimateCostUsd", () => {
       { stage: "plan", durationMs: 100, inputTokens: 1000, outputTokens: 500 },
       { stage: "analyze", durationMs: 50, inputTokens: 2000, outputTokens: 1000 },
     ]);
-    // plan: 1000 * 15/1M + 500 * 75/1M = 0.015 + 0.0375 = 0.0525
-    // analyze: 2000 * 0.8/1M + 1000 * 4/1M = 0.0016 + 0.004 = 0.0056
-    // total: 0.0581
-    expect(cost).toBeCloseTo(0.0581, 4);
+    // plan (Claude Code): 1000 * 5/1M + 500 * 25/1M = 0.005 + 0.0125 = 0.0175
+    // analyze (light): 2000 * 1/1M + 1000 * 5/1M = 0.002 + 0.005 = 0.007
+    // total: 0.0245
+    expect(cost).toBeCloseTo(0.0245, 4);
+  });
+
+  it("applies light tier to adversary stage", () => {
+    const cost = estimateCostUsd([
+      { stage: "adversary", durationMs: 80, inputTokens: 3000, outputTokens: 1000 },
+    ]);
+    // adversary (light): 3000 * 1/1M + 1000 * 5/1M = 0.003 + 0.005 = 0.008
+    expect(cost).toBeCloseTo(0.008, 6);
   });
 
   it("returns 0 for unknown stages (no rate match)", () => {
