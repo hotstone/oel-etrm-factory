@@ -85,14 +85,11 @@
   }
   td { padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
   td:first-child { font-weight: 600; white-space: nowrap; }
-  .flow {
+  .diagram-wrap {
     background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-    padding: 1.1rem 1.2rem; margin: 1.2rem 0; overflow-x: auto;
-    font-family: "IBM Plex Mono", monospace; font-size: 0.85rem; line-height: 1.9;
-    white-space: nowrap;
+    padding: 0.8rem 1rem; margin: 1.2rem 0; overflow-x: auto;
   }
-  .flow b { color: var(--accent); font-weight: 500; }
-  .flow .dim { color: var(--muted); }
+  .diagram-wrap .mermaid { margin: 0; }
   ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 1.4rem 0; }
   ol.steps > li {
     counter-increment: step; position: relative;
@@ -145,10 +142,30 @@
   findings into lessons that inform future runs.</p>
 
   <h2>Architecture at a glance</h2>
-  <div class="flow">
-    ticket <span class="dim">(label transition)</span> → <b>webhook λ</b> <span class="dim">HMAC · filter · idempotency claim</span> → <b>orchestrator</b> <span class="dim">(AgentCore runtime, deterministic graph)</span><br>
-    &nbsp;&nbsp;analyze → plan ⇄ adversary → implement <span class="dim">(CodeBuild)</span> → review ⇄ revise → curate<br>
-    &nbsp;&nbsp;&nbsp;&nbsp;↳ PR + verbatim review trail &nbsp;·&nbsp; ↳ findings → DynamoDB → lessons → memory <span class="dim">(namespace per repo)</span>
+  <div class="diagram-wrap">
+  <pre class="mermaid">
+flowchart LR
+  T(["Ticket<br/>agent-ready label"]) --> W["Webhook Lambda<br/>HMAC · transition filter<br/>idempotency claim"]
+  W --> AN
+  subgraph ORCH["Orchestrator — AgentCore runtime, deterministic graph"]
+    AN["analyze<br/><i>gate + decompose</i>"] --> PL["plan<br/><i>Claude Code, plan mode</i>"]
+    PL -->|plan| AD["adversary"]
+    AD -->|objections| PL
+    PL --> IM["implement<br/><i>Claude Code in CodeBuild</i>"]
+    IM --> RV["review<br/><i>fresh context</i>"]
+    RV -->|blocking findings, capped| IM
+    RV --> CU["curate"]
+  end
+  AN -->|blocked / questions| T
+  IM --> PR(["Pull request<br/>human merges"])
+  RV -->|verbatim review trail| PR
+  RV --> FN[("Findings<br/>DynamoDB")]
+  FN --> CU
+  CU --> ME[("Lessons memory<br/>namespace per repo")]
+  ME -.->|retrieval| PL
+  ME -.-> IM
+  ME -.-> RV
+  </pre>
   </div>
 
   <div class="table-wrap"><table>
