@@ -1,0 +1,250 @@
+<title>Ticket-to-PR Factory</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper: #f6f8f5;
+    --ink: #23312c;
+    --muted: #5d6b65;
+    --accent: #0e6b5e;
+    --accent-soft: #dcebe6;
+    --warn: #8a5a14;
+    --warn-soft: #f3e8d3;
+    --line: #d3dcd6;
+    --card: #ffffff;
+    --code-bg: #eef2ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #141a17;
+      --ink: #d8e2dc;
+      --muted: #8fa098;
+      --accent: #47a893;
+      --accent-soft: #1c322c;
+      --warn: #d3a04c;
+      --warn-soft: #2c2417;
+      --line: #2c3833;
+      --card: #1a221e;
+      --code-bg: #202a25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #141a17;
+    --ink: #d8e2dc;
+    --muted: #8fa098;
+    --accent: #47a893;
+    --accent-soft: #1c322c;
+    --warn: #d3a04c;
+    --warn-soft: #2c2417;
+    --line: #2c3833;
+    --card: #1a221e;
+    --code-bg: #202a25;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    margin: 0;
+    padding: 3rem 1.25rem 5rem;
+  }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1, h2, h3 {
+    font-family: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    text-wrap: balance;
+    line-height: 1.15;
+  }
+  h1 { font-size: 2.3rem; font-weight: 700; margin: 0 0 0.4rem; letter-spacing: -0.015em; }
+  .subtitle { color: var(--muted); font-size: 1.05rem; margin: 0 0 2.75rem; max-width: 38rem; }
+  h2 {
+    font-size: 1.45rem; font-weight: 650; margin: 3rem 0 1rem;
+    padding-top: 1.4rem; border-top: 1px solid var(--line);
+  }
+  h3 { font-size: 1.08rem; font-weight: 600; margin: 1.6rem 0 0.5rem; }
+  p { margin: 0.7rem 0; }
+  code, pre {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 0.88em;
+  }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+  .eyebrow {
+    font-family: "Archivo", sans-serif; font-size: 0.72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent);
+    margin: 0 0 0.6rem;
+  }
+  table {
+    border-collapse: collapse; width: 100%; font-size: 0.95rem; margin: 1rem 0;
+  }
+  .table-wrap { overflow-x: auto; }
+  th {
+    text-align: left; font-family: "Archivo", sans-serif; font-size: 0.75rem;
+    text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted);
+    padding: 0.4rem 0.9rem 0.4rem 0; border-bottom: 1.5px solid var(--line);
+    white-space: nowrap;
+  }
+  td { padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+  .flow {
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: 1.1rem 1.2rem; margin: 1.2rem 0; overflow-x: auto;
+    font-family: "IBM Plex Mono", monospace; font-size: 0.85rem; line-height: 1.9;
+    white-space: nowrap;
+  }
+  .flow b { color: var(--accent); font-weight: 500; }
+  .flow .dim { color: var(--muted); }
+  ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 1.4rem 0; }
+  ol.steps > li {
+    counter-increment: step; position: relative;
+    padding: 0 0 1.5rem 3.1rem; margin: 0;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 0.05rem;
+    width: 2rem; height: 2rem; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    font-family: "Archivo", sans-serif; font-weight: 700; font-size: 0.95rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  ol.steps > li:not(:last-child)::after {
+    content: ""; position: absolute; left: calc(1rem - 1px); top: 2.35rem; bottom: 0.2rem;
+    width: 2px; background: var(--line);
+  }
+  ol.steps h3 { margin: 0 0 0.35rem; }
+  ol.steps p { margin: 0.35rem 0; font-size: 0.98rem; }
+  ul { padding-left: 1.2rem; margin: 0.6rem 0; }
+  li { margin: 0.3rem 0; }
+  .gotcha {
+    background: var(--warn-soft); border-left: 3px solid var(--warn);
+    border-radius: 0 6px 6px 0; padding: 0.9rem 1.1rem; margin: 1.1rem 0;
+    font-size: 0.95rem;
+  }
+  .gotcha .tag {
+    font-family: "Archivo", sans-serif; font-size: 0.7rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.12em; color: var(--warn);
+    display: block; margin-bottom: 0.35rem;
+  }
+  .gotcha ul { margin: 0.2rem 0 0; }
+  .quiet { color: var(--muted); font-size: 0.92rem; }
+  strong { font-weight: 600; }
+</style>
+
+<main>
+  <p class="eyebrow">Architecture &amp; build order</p>
+  <h1>Ticket-to-PR Factory</h1>
+  <p class="subtitle">An agent pipeline that takes a well-specified ticket from a board to a
+  reviewed pull request, with a human gate at both ends. Distilled from the working
+  etrm-factory build for a from-scratch rebuild.</p>
+
+  <h2>What it is</h2>
+  <p>A ticket labelled <code>agent-ready</code> triggers a fully automated run:
+  an analyzer decides the ticket is workable, a planner explores the repo and writes a plan,
+  an adversary attacks the plan, an implementer executes it in an isolated build, a reviewer
+  attacks the diff, and the run ends at a pull request a human must merge. Every stage failure
+  reports back to the ticket; nothing merges or deploys itself. A learning loop turns review
+  findings into lessons that inform future runs.</p>
+
+  <h2>Architecture at a glance</h2>
+  <div class="flow">
+    ticket <span class="dim">(label transition)</span> → <b>webhook λ</b> <span class="dim">HMAC · filter · idempotency claim</span> → <b>orchestrator</b> <span class="dim">(AgentCore runtime, deterministic graph)</span><br>
+    &nbsp;&nbsp;analyze → plan ⇄ adversary → implement <span class="dim">(CodeBuild)</span> → review ⇄ revise → curate<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;↳ PR + verbatim review trail &nbsp;·&nbsp; ↳ findings → DynamoDB → lessons → memory <span class="dim">(namespace per repo)</span>
+  </div>
+
+  <div class="table-wrap"><table>
+    <tr><th>Component</th><th>Runs where</th><th>Role</th></tr>
+    <tr><td>Webhook ingress</td><td>Lambda, public URL</td><td>HMAC verify; fire only on the <em>transition</em> to <code>agent-ready</code>; DynamoDB conditional claim (compare an <code>expiresAt</code> attribute, not the lazy TTL) so one delivery wins; a finished run shortens its claim to a short grace window so human retries work</td></tr>
+    <tr><td>Orchestrator</td><td>Container on AgentCore Runtime</td><td>Deterministic graph — no LLM routing. One fresh session ID per run is the isolation boundary; never reuse or persist sessions</td></tr>
+    <tr><td>Analyzer</td><td>Small model, structured output</td><td>Gate + decomposition: suitable, confidence, intent, requirements, acceptance criteria, areas, risk, complexity, questions, injection tripwire</td></tr>
+    <tr><td>Planner</td><td>Claude Code, plan mode, shallow clone</td><td>Explores the repo, writes the plan; must be told the target's protected paths</td></tr>
+    <tr><td>Adversary</td><td>Small model</td><td>Refutes the plan against acceptance criteria; gaps and scope creep are blocking; loop capped</td></tr>
+    <tr><td>Implementer</td><td>Claude Code in CodeBuild</td><td>Implements the plan; mechanical gates (typecheck, tests, protected paths) before any push; harness owns git and the PR</td></tr>
+    <tr><td>Reviewer</td><td>Claude Code, fresh context</td><td>Blind diff review, findings-only format; each pass posted verbatim to the PR as a review with event <code>COMMENT</code> — a bot must never APPROVE or REQUEST_CHANGES; blocking findings drive one capped revision build</td></tr>
+    <tr><td>Curator</td><td>Small model</td><td>Distills persisted findings into lessons in semantic memory, one namespace per target repo; echo-guard in code, not prompt</td></tr>
+  </table></div>
+
+  <h3>Security model, in five invariants</h3>
+  <ul>
+    <li><strong>Agent sessions hold Bedrock-only credentials.</strong> A dedicated role that can invoke models and nothing else; the container role's credential source is stripped from the subprocess env.</li>
+    <li><strong>Workspaces are credential-less.</strong> Remotes scrubbed after clone; tokens passed via git credential helper or unexported shell vars, never argv or URLs; only deterministic harness steps push, only to <code>agent/*</code> branches. Redact token shapes from every failure path — child-process errors quote the failing command into logs.</li>
+    <li><strong>Ticket text is data, not instructions.</strong> Harness code wraps it in delimiters (strip look-alikes first); the analyzer carries an injection tripwire; the reviewer treats security-weakening changes as blocking even when the ticket asks for them. The uncorrelated checks are human: who applies the label, and who merges.</li>
+    <li><strong>Protected paths.</strong> When the pipeline can modify its own repo, the files that constrain it (workflows, IAM, buildspec, injection code, target definitions, eval cases) are enforced off-limits mechanically in the build and by the reviewer — and told to the planner so plans never propose them.</li>
+    <li><strong>Humans gate both ends.</strong> Restricted label application in; PR review and manual deploys out. Never auto-merge.</li>
+  </ul>
+
+  <h3>Everything else</h3>
+  <p><strong>Learning loop:</strong> findings persist to DynamoDB on every review exit (best-effort, never fails a run); the curator writes lessons to semantic memory; planner, implementer, and reviewer retrieve them — the reviewer blind-first, lessons checked only after its own pass.
+  <strong>Observability:</strong> OTEL via the platform's preload path, EMF metrics per run/stage (tokens, duration, estimated cost), stage-summary log lines as the quick progress view.
+  <strong>Delivery:</strong> unit tests gate the container build; CI + manual eval-sweep and deploy workflows via OIDC; a graded eval ticket set runs against the deployed runtime before prompt/model/graph changes ship.</p>
+
+  <h2>Build order</h2>
+  <p class="quiet">The order that worked. Each step is demonstrable on its own; resist starting the webhook or memory before the core loop earns them.</p>
+
+  <ol class="steps">
+    <li>
+      <h3>Prerequisites</h3>
+      <p>Bedrock model access in your region (regional inference profile IDs, not bare model IDs — and check the account allowlist for the newest models early, it can take a support case). Board + labels (<code>agent-ready</code>, <code>agent-in-progress</code>, <code>agent-blocked</code>). A test target repo with a real test suite and a <code>CLAUDE.md</code>. Secrets in Secrets Manager. <strong>Use a GitHub App from day one</strong> — per-repo installation tokens, org-owned, nothing long-lived to rotate; a fine-grained PAT works but its repo selection will bite you.</p>
+    </li>
+    <li>
+      <h3>Walking skeleton</h3>
+      <p>Container that answers <code>/invocations</code> and <code>/ping</code>, deployed to the agent runtime by an idempotent script; invoke it by CLI with an issue ID and echo the issue back. This proves auth, deploy, and logging before any intelligence exists.</p>
+    </li>
+    <li>
+      <h3>Analyzer</h3>
+      <p>Small fast model with schema-validated structured output; read the ticket, comment its assessment back, gate on suitability. Calibrate it: block on genuinely ambiguous intent, never on details discoverable by reading the repo.</p>
+    </li>
+    <li>
+      <h3>Planner ⇄ adversary</h3>
+      <p>Headless Claude Code in plan mode over a shallow, credential-less clone; pipe prompts via stdin; resume the session for revisions. Adversary critiques with structured output; loop imperatively with a hard cap. Graph frameworks with AND-dependency semantics deadlock on cyclic edges — run all loops inside nodes.</p>
+    </li>
+    <li>
+      <h3>Implementer in CodeBuild</h3>
+      <p>Fresh container per build: clone, scrub remote, install, run Claude Code against the approved plan under Bedrock-only creds, then mechanical gates — typecheck, tests, protected paths — before the harness commits, pushes, and opens the PR. Plan in via S3; transcript out to S3.</p>
+    </li>
+    <li>
+      <h3>Reviewer + revision loop</h3>
+      <p>Fresh-context review of the PR diff against plan and acceptance criteria; findings-only output format with a retry-once guard; post each pass verbatim to the PR (<code>COMMENT</code> only). Blocking findings trigger one revision build; cap-hit or implementer disagreement escalates to the human with everything visible. Wire the label lifecycle and the every-failure-comments rule now.</p>
+    </li>
+    <li>
+      <h3>Webhook trigger</h3>
+      <p>Lambda with HMAC verification, transition-only firing, and the expiry-aware idempotency claim (ticket systems deliver several events per label change — absorb the burst, release on terminal state). This is the moment the loop closes: label a ticket, get a PR.</p>
+    </li>
+    <li>
+      <h3>Tests, evals, CI</h3>
+      <p>Unit tests over every pure piece (parsers, predicates, prompt assembly, redaction), gating the image build. A graded eval set — well-specified feature, known bug, ambiguous, vague, injection — run against the deployed runtime with deterministic scoring and cleanup. CI + manual deploy workflows via OIDC.</p>
+    </li>
+    <li>
+      <h3>Learning loop</h3>
+      <p>Findings table, curator, semantic memory with per-repo namespaces, retrieval into the three consumers. Keep every memory call best-effort. Expect low retrieval scores (~0.4–0.5) for clearly related content — set floors empirically. Metadata fields have small hard limits (e.g. 5-item lists) — truncate in a tested pure mapper.</p>
+    </li>
+    <li>
+      <h3>Multi-repo + self-hosting</h3>
+      <p>A targets file (slug, workdir, verify commands, protected paths, memory namespace) with routing by label — plus <strong>source→target bindings</strong>: which board may dispatch to which repos, enforced deterministically at ingress and at target resolution. Only then point it at its own repository.</p>
+    </li>
+  </ol>
+
+  <h2>Do differently this time</h2>
+  <ul>
+    <li><strong>GitHub App, not PAT</strong> — covered above; it also makes PR attribution honest.</li>
+    <li><strong>Source→target bindings from the start</strong>, not label-only routing — a mis-labelled ticket once delivered a feature into the wrong repository.</li>
+    <li><strong>Failure detail reaches the ticket.</strong> "Run failed" without the failing gate's actual output costs a debugging cycle every time; extract the reason (redacted) into the failure comment from day one.</li>
+    <li><strong>Tell the planner the constraints the build enforces</strong> — a plan that violates a mechanical gate burns a full build to find out.</li>
+    <li><strong>Plan model quota headroom.</strong> Daily per-model token caps are real and often non-adjustable; five runs in a day hit the Opus ceiling. Spread stages across model tiers and know your reset time.</li>
+    <li><strong>Egress control before real code</strong> — private subnets + NAT chokepoint; the open-egress runtime was the accepted gap of the prototype.</li>
+  </ul>
+
+  <div class="gotcha">
+    <span class="tag">Gotchas that each cost a debugging cycle</span>
+    <ul>
+      <li>CodeBuild shells are dash, not bash — no <code>pipefail</code>; a YAML scalar containing <code>: </code> becomes a mapping. Quote commands, redirect instead of pipe.</li>
+      <li>Claude Code as root needs its sandbox env flag; prompts go via stdin — argv echoes the whole prompt into error messages.</li>
+      <li>Ticket-system JSON can contain raw control characters — parse leniently.</li>
+      <li>New IAM roles fail downstream validation for ~10–20&nbsp;s — make setup scripts re-runnable and just re-run.</li>
+      <li>OTEL on a managed runtime: use the platform's exporter path; a vanilla OTLP exporter exports to nowhere, silently. And platform-side span ingestion can break with zero client-side errors — verify spans actually land after every change.</li>
+      <li>The pipeline's own status comments must be filtered out of the analyzer's view, or it reads them as suspicious content.</li>
+      <li>DynamoDB TTL deletion is lazy by hours — never rely on it for logic; compare timestamps.</li>
+    </ul>
+  </div>
+
+  <p class="quiet" style="margin-top:3rem">Reference implementation: the etrm-factory repo — <code>docs/specs/</code> holds the full pipeline, security, and learning-loop specifications; <code>infra/scripts/</code> the idempotent provisioning.</p>
+</main>
