@@ -92,14 +92,14 @@
   .diag { display: flex; flex-direction: column; align-items: center; min-width: 34rem; }
   .d-node {
     border: 1.5px solid var(--line); border-radius: 8px; background: var(--paper);
-    padding: 0.45rem 1rem; text-align: center; max-width: 17rem;
+    padding: 0.45rem 1rem; text-align: center; width: 15rem; min-height: 3.6rem;
+    display: flex; flex-direction: column; justify-content: center;
   }
   .d-node .t { font-family: "Archivo", sans-serif; font-weight: 600; font-size: 0.92rem; display: block; }
   .d-node small { color: var(--muted); font-size: 0.76rem; line-height: 1.35; display: block; margin-top: 2px; }
-  .d-pill { border-radius: 999px; background: var(--accent-soft); border-color: var(--accent); padding: 0.45rem 1.3rem; }
+  .d-pill { border-radius: 999px; background: var(--accent-soft); border-color: var(--accent); }
   .d-pill .t { color: var(--accent); }
   .d-store { border-style: dashed; }
-  .d-minor { border-style: solid; opacity: 0.92; }
   .d-down { display: flex; flex-direction: column; align-items: center; height: 1.6rem; position: relative; }
   .d-down::before { content: ""; width: 2px; flex: 1; background: var(--muted); }
   .d-down::after { content: ""; border: 5px solid transparent; border-top-color: var(--muted); margin-top: -1px; }
@@ -117,11 +117,9 @@
     padding: 0 0.5rem; font-family: "Archivo", sans-serif; font-size: 0.7rem;
     letter-spacing: 0.11em; text-transform: uppercase; color: var(--accent); font-weight: 700;
   }
-  .d-duo { display: flex; align-items: center; gap: 0.55rem; }
-  .d-duo .sym { color: var(--accent); font-weight: 600; font-size: 1.15rem; }
   .d-loop { position: relative; display: flex; flex-direction: column; align-items: center; }
   .d-loop .bracket {
-    position: absolute; right: -1.9rem; top: 2.6rem; bottom: 1rem; width: 1.4rem;
+    position: absolute; right: -1.9rem; top: 1.8rem; bottom: 1.8rem; width: 1.4rem;
     border: 2px solid var(--muted); border-left: none; border-radius: 0 9px 9px 0;
   }
   .d-loop .bracket::after {
@@ -129,12 +127,12 @@
     border: 6px solid transparent; border-right-color: var(--muted);
   }
   .d-loop .bl {
-    position: absolute; right: -3.5rem; top: 2.6rem; bottom: 1rem;
+    position: absolute; right: -3.5rem; top: 1.8rem; bottom: 1.8rem;
     writing-mode: vertical-rl; display: flex; align-items: center; justify-content: center;
     color: var(--muted); font-size: 0.72rem; white-space: nowrap;
   }
   .d-outs { display: flex; align-items: stretch; gap: 0.9rem; margin-top: 0.1rem; }
-  .d-outs .d-node { flex: 1; max-width: 14rem; }
+  .d-outs .d-node { width: 15rem; min-height: 0; }
   .d-caption { color: var(--muted); font-size: 0.85rem; margin: 1.2rem 0 0.2rem; text-align: center; }
   ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 1.4rem 0; }
   ol.steps > li {
@@ -198,13 +196,15 @@
         <span class="cap">Orchestrator · AgentCore runtime</span>
         <div class="d-node"><span class="t">analyze</span><small>gate + decompose · injection tripwire</small></div>
         <div class="d-down"></div>
-        <div class="d-duo">
-          <div class="d-node"><span class="t">plan</span><small>Claude Code, plan mode</small></div>
-          <span class="sym">⇄</span>
-          <div class="d-node d-minor"><span class="t">adversary</span><small>objections, capped</small></div>
-        </div>
         <div class="d-loop">
+          <div class="d-node"><span class="t">plan</span><small>Claude Code, plan mode</small></div>
           <div class="d-down"></div>
+          <div class="d-node"><span class="t">adversary</span><small>refutes plan vs criteria</small></div>
+          <span class="bracket"></span>
+          <span class="bl">objections → plan revised (capped)</span>
+        </div>
+        <div class="d-down"></div>
+        <div class="d-loop">
           <div class="d-node"><span class="t">implement</span><small>Claude Code in CodeBuild</small></div>
           <div class="d-down"></div>
           <div class="d-node"><span class="t">review</span><small>fresh context · findings only</small></div>
