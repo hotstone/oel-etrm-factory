@@ -109,7 +109,7 @@
   }
   .d-orch {
     border: 1.5px solid var(--accent); border-radius: 10px; position: relative;
-    padding: 1.3rem 4.1rem 1.2rem; margin-top: 0.5rem;
+    padding: 1.3rem 9.6rem 1.2rem; margin-top: 0.5rem;
     display: flex; flex-direction: column; align-items: center;
   }
   .d-orch > .cap {
@@ -127,9 +127,21 @@
     border: 6px solid transparent; border-right-color: var(--muted);
   }
   .d-loop .bl {
-    position: absolute; right: -3.5rem; top: 1.8rem; bottom: 1.8rem;
-    writing-mode: vertical-rl; display: flex; align-items: center; justify-content: center;
-    color: var(--muted); font-size: 0.72rem; white-space: nowrap;
+    position: absolute; left: calc(100% + 2.3rem); top: 50%; transform: translateY(-50%);
+    width: 6.8rem; color: var(--muted); font-size: 0.72rem; line-height: 1.35; text-align: left;
+  }
+  .d-gate { position: relative; }
+  .d-gate .stub {
+    position: absolute; right: 100%; top: 50%; width: 1.4rem; height: 2px;
+    background: var(--muted); transform: translateY(-50%); margin-right: 0;
+  }
+  .d-gate .stub::before {
+    content: ""; position: absolute; left: -9px; top: 50%; transform: translateY(-50%);
+    border: 6px solid transparent; border-right-color: var(--muted);
+  }
+  .d-gate .sl {
+    position: absolute; right: calc(100% + 2.3rem); top: 50%; transform: translateY(-50%);
+    width: 6.8rem; color: var(--muted); font-size: 0.72rem; line-height: 1.35; text-align: right;
   }
   .d-outs { display: flex; align-items: stretch; gap: 0.9rem; margin-top: 0.1rem; }
   .d-outs .d-node { width: 15rem; min-height: 0; }
@@ -194,7 +206,11 @@
       <div class="d-down"></div>
       <div class="d-orch">
         <span class="cap">Orchestrator · AgentCore runtime</span>
-        <div class="d-node"><span class="t">analyze</span><small>gate + decompose · injection tripwire</small></div>
+        <div class="d-gate">
+          <div class="d-node"><span class="t">analyze</span><small>gate + decompose · injection tripwire</small></div>
+          <span class="stub"></span>
+          <span class="sl">unsuitable or injection suspected → exit: blocked, questions commented to ticket</span>
+        </div>
         <div class="d-down"></div>
         <div class="d-loop">
           <div class="d-node"><span class="t">plan</span><small>Claude Code, plan mode</small></div>
@@ -221,8 +237,8 @@
         <div class="d-node d-store"><span class="t">Lessons memory</span><small>namespace per repo · ⟲ retrieved into plan, implement, review</small></div>
       </div>
     </div>
-    <p class="d-caption">Analyze may block with questions — commented back to the ticket, which a human answers and
-    re-labels. Every failure path, at any stage, also lands as a ticket comment.</p>
+    <p class="d-caption">A blocked exit ends the run; a human answers on the ticket and re-applies
+    <code>agent-ready</code> to retry. Every failure path, at any stage, also lands as a ticket comment.</p>
   </div>
 
   <div class="table-wrap"><table>
